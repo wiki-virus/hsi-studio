@@ -90,33 +90,38 @@ export default function Toolbar({ onSave }) {
       {/* Draw Tools */}
       <div className="toolbar-group">
         <button
-          className={`toolbar-btn ${annotationMode === 'brush' ? 'active' : ''}`}
+          className={`toolbar-btn toolbar-btn-text ${annotationMode === 'brush' ? 'active' : ''}`}
           onClick={() => setAnnotationMode('brush')}
-          title="Brush Tool"
+          title="Draw (Brush Tool)"
         >
-          <Paintbrush size={18} />
+          <Paintbrush size={16} /> Draw
         </button>
-        <button
-          className={`toolbar-btn ${annotationMode === 'eraser' ? 'active' : ''}`}
-          onClick={() => setAnnotationMode('eraser')}
-          title="Eraser Tool"
-        >
-          <Eraser size={18} />
-        </button>
-        <button
-          className={`toolbar-btn ${annotationMode === 'polygon' ? 'active' : ''}`}
-          onClick={() => setAnnotationMode('polygon')}
-          title="Polygon Select"
-        >
-          <Hexagon size={18} />
-        </button>
-        <button
-          className={`toolbar-btn ${annotationMode === 'lasso' ? 'active' : ''}`}
-          onClick={() => setAnnotationMode('lasso')}
-          title="Lasso Select"
-        >
-          <Lasso size={18} />
-        </button>
+        
+        {['brush', 'eraser', 'polygon', 'lasso'].includes(annotationMode) && (
+          <>
+            <button
+              className={`toolbar-btn ${annotationMode === 'eraser' ? 'active' : ''}`}
+              onClick={() => setAnnotationMode('eraser')}
+              title="Eraser Tool"
+            >
+              <Eraser size={18} />
+            </button>
+            <button
+              className={`toolbar-btn ${annotationMode === 'polygon' ? 'active' : ''}`}
+              onClick={() => setAnnotationMode('polygon')}
+              title="Polygon Select"
+            >
+              <Hexagon size={18} />
+            </button>
+            <button
+              className={`toolbar-btn ${annotationMode === 'lasso' ? 'active' : ''}`}
+              onClick={() => setAnnotationMode('lasso')}
+              title="Lasso Select"
+            >
+              <Lasso size={18} />
+            </button>
+          </>
+        )}
       </div>
 
       {/* Spacer pushes remaining items to the right */}
