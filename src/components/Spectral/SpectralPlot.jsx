@@ -1,7 +1,8 @@
 import { useMemo, useState } from 'react'
 import Plot from 'react-plotly.js'
-import { Activity, Download, ZoomIn, Hand, Maximize } from 'lucide-react'
+import { Activity, Download, ZoomIn, Hand, Maximize, Settings } from 'lucide-react'
 import useAppStore from '../../stores/useAppStore'
+import ExportGraphModal from './ExportGraphModal'
 
 /**
  * SpectralPlot — renders spectral signature of selected pixel(s) using Plotly.
@@ -53,6 +54,7 @@ export default function SpectralPlot({ spectrumData }) {
         type: 'scatter',
         mode: 'lines',
         name: `Pixel (${spectrumData.x}, ${spectrumData.y})`,
+        showlegend: false,
         line: {
           color: '#4f8fff',
           width: 2,
@@ -156,6 +158,7 @@ export default function SpectralPlot({ spectrumData }) {
   }
 
   const [activeTool, setActiveTool] = useState('zoom')
+  const [showExport, setShowExport] = useState(false)
 
   const handleToolClick = (tool, title) => {
     setActiveTool(tool)
@@ -245,10 +248,18 @@ export default function SpectralPlot({ spectrumData }) {
           <button
             className="toolbar-btn"
             onClick={() => triggerPlotlyButton('download')}
-            title="Download Graph (PNG)"
+            title="Quick Download (PNG)"
             style={{ padding: '4px', minWidth: 'auto', flex: 1 }}
           >
             <Download size={16} />
+          </button>
+          <button
+            className="toolbar-btn"
+            onClick={() => setShowExport(true)}
+            title="Extended Graph Export"
+            style={{ padding: '4px', minWidth: 'auto', flex: 1 }}
+          >
+            <Settings size={16} />
           </button>
         </div>
 
@@ -322,6 +333,8 @@ export default function SpectralPlot({ spectrumData }) {
           </div>
         ))}
       </div>
+
+      {showExport && <ExportGraphModal onClose={() => setShowExport(false)} />}
     </div>
   )
 }
