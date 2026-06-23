@@ -528,6 +528,14 @@ export default function DatacubeViewer({ bandImage, rgbImage, bandStats, onPixel
     const coords = screenToImage(e.clientX, e.clientY)
     setCursorPos(coords)
     setScreenMousePos({ x: e.clientX, y: e.clientY })
+
+    // Dynamic spectrum preview on shift hover
+    if (e.shiftKey && coords && annotationMode === 'view' && !isPanningRef.current) {
+      if (onPixelClick) {
+        onPixelClick(coords.x, coords.y, false)
+      }
+    }
+
     if (polygonPoints.length > 0 || isLassoingRef.current) redrawVectors()
 
     if (isPanningRef.current) {

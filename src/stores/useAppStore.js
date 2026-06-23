@@ -151,6 +151,14 @@ const useAppStore = create((set, get) => ({
       pinnedSpectra: s.pinnedSpectra.filter((_, i) => i !== index),
     })),
 
+  /** Update a pinned spectrum by its index */
+  updatePinnedSpectrum: (index, updates) =>
+    set((s) => {
+      const newSpectra = [...s.pinnedSpectra]
+      newSpectra[index] = { ...newSpectra[index], ...updates }
+      return { pinnedSpectra: newSpectra }
+    }),
+
   /** Clear all pinned spectra */
   clearPinnedSpectra: () => set({ pinnedSpectra: [] }),
 

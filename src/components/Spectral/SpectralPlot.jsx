@@ -131,12 +131,13 @@ export default function SpectralPlot({ spectrumData }) {
 
   const addPinnedSpectrum = useAppStore(s => s.addPinnedSpectrum)
   const removePinnedSpectrum = useAppStore(s => s.removePinnedSpectrum)
+  const updatePinnedSpectrum = useAppStore(s => s.updatePinnedSpectrum)
 
   const config = useMemo(() => ({
     responsive: true,
     displayModeBar: true,
     displaylogo: false,
-    modeBarButtonsToRemove: ['autoScale2d', 'lasso2d', 'select2d', 'sendDataToCloud', 'toImage'],
+    modeBarButtonsToRemove: ['autoScale2d', 'lasso2d', 'select2d', 'sendDataToCloud'],
     modeBarStyle: {
       backgroundColor: 'transparent',
     },
@@ -155,14 +156,15 @@ export default function SpectralPlot({ spectrumData }) {
 
   const handlePin = () => {
     if (!spectrumData) return
-    const h = (pinnedSpectra.length * 60 + 180) % 360
+    const COLORS = ['#ff4757', '#ffa502', '#2ed573', '#1e90ff', '#3742fa', '#ff5285', '#be2edd']
+    const color = COLORS[pinnedSpectra.length % COLORS.length]
     addPinnedSpectrum({
       x: spectrumData.x,
       y: spectrumData.y,
       spectrum: spectrumData.spectrum,
       wavelengths: spectrumData.wavelengths,
-      color: `hsl(${h}, 70%, 60%)`,
-      label: `Pixel (${spectrumData.x}, ${spectrumData.y})`
+      color: color,
+      label: `Pixel ${pinnedSpectra.length + 1}`
     })
   }
 
@@ -212,8 +214,33 @@ export default function SpectralPlot({ spectrumData }) {
             borderRadius: '4px',
             fontSize: '12px'
           }}>
-            <div style={{ width: 12, height: 12, borderRadius: '50%', background: pinned.color }} />
-            <span style={{ color: 'var(--text-primary)' }}>{pinned.label}</span>
+            <input 
+              type="color" 
+              value={pinned.color && pinned.color.startsWith('#') ? pinned.color : '#ffffff'} 
+              // Convert hsl to hex or just store it. Actually, color picker needs hex! 
+              // Wait, HTML color picker needs a hex color `#rrggbb`.
+              // We should probably convert hsl to hex, or just let them pick and it will be hex.
+              // To handle this simply without color conversion library:
+              // Let's use a small invisible color picker overlay on top of the circle, or just the input.
+              // We will just let the value be the color if it's hex, otherwise the browser will default to black, and picking a new one will set it to hex.
+              // A better way is to provide a clean input:
+              onChange={(e) => updatePinnedSpectrum(i, { color: e.target.value })}
+              style={{
+                width: 16, height: 16, padding: 0, border: 'none', borderRadius: '50%', cursor: 'pointer',
+                background: 'transparent'
+              }}
+              title="Change trace color"
+            />
+            <input 
+              type="text" 
+              value={pinned.label}
+              onChange={(e) => updatePinnedSpectrum(i, { label: e.target.value })}
+              style={{ 
+                background: 'transparent', border: 'none', color: 'var(--text-primary)', 
+                width: '60px', outline: 'none', fontSize: '12px' 
+              }}
+              title="Rename trace"
+            />
             <button
               onClick={() => removePinnedSpectrum(i)}
               style={{

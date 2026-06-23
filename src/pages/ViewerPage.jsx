@@ -83,13 +83,14 @@ export default function ViewerPage({ datacubeRef, workerRef, inputFormat }) {
           if (isPin) {
             const pinnedSpectra = useAppStore.getState().pinnedSpectra
             const addPinnedSpectrum = useAppStore.getState().addPinnedSpectrum
-            const h = (pinnedSpectra.length * 60 + 180) % 360
+            const COLORS = ['#ff4757', '#ffa502', '#2ed573', '#1e90ff', '#3742fa', '#ff5285', '#be2edd']
+            const color = COLORS[pinnedSpectra.length % COLORS.length]
             addPinnedSpectrum({
               x, y,
               spectrum,
               wavelengths,
-              color: `hsl(${h}, 70%, 60%)`,
-              label: `Pixel (${x}, ${y})`
+              color: color,
+              label: `Pixel ${pinnedSpectra.length + 1}`
             })
           } else {
             setSpectrumData({ spectrum, wavelengths, x, y })
@@ -230,12 +231,14 @@ export default function ViewerPage({ datacubeRef, workerRef, inputFormat }) {
       const delta = resizeStartYRef.current - moveEvent.clientY
       const newHeight = Math.max(120, Math.min(600, resizeStartHeightRef.current + delta))
       setSpectralHeight(newHeight)
+      window.dispatchEvent(new Event('resize'))
     }
 
     const handleResizeEnd = () => {
       isResizingRef.current = false
       document.removeEventListener('mousemove', handleResizeMove)
       document.removeEventListener('mouseup', handleResizeEnd)
+      window.dispatchEvent(new Event('resize'))
     }
 
     document.addEventListener('mousemove', handleResizeMove)
