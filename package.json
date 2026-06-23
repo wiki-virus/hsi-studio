@@ -1,5 +1,6 @@
 {
   "name": "hsi-studio",
+  "description": "High-Performance In-Browser Hyperspectral Imaging & Annotation Interface",
   "private": true,
   "version": "0.0.0",
   "type": "module",
