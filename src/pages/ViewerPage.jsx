@@ -79,8 +79,21 @@ export default function ViewerPage({ datacubeRef, workerRef, inputFormat }) {
         }
 
         case 'spectrumExtracted': {
-          const { spectrum, wavelengths, x, y } = e.data
-          setSpectrumData({ spectrum, wavelengths, x, y })
+          const { spectrum, wavelengths, x, y, isPin } = e.data
+          if (isPin) {
+            const pinnedSpectra = useAppStore.getState().pinnedSpectra
+            const addPinnedSpectrum = useAppStore.getState().addPinnedSpectrum
+            const h = (pinnedSpectra.length * 60 + 180) % 360
+            addPinnedSpectrum({
+              x, y,
+              spectrum,
+              wavelengths,
+              color: `hsl(${h}, 70%, 60%)`,
+              label: `Pixel (${x}, ${y})`
+            })
+          } else {
+            setSpectrumData({ spectrum, wavelengths, x, y })
+          }
           break
         }
 
@@ -176,7 +189,7 @@ export default function ViewerPage({ datacubeRef, workerRef, inputFormat }) {
   // ─────────────────────────────────────────────────────────────
   // Handle pixel click → request spectrum from worker or wand
   // ─────────────────────────────────────────────────────────────
-  const handlePixelClick = useCallback((x, y) => {
+  const handlePixelClick = useCallback((x, y, isPin = false) => {
     const worker = workerRef.current
     if (!worker) return
 
@@ -200,8 +213,8 @@ export default function ViewerPage({ datacubeRef, workerRef, inputFormat }) {
     }
 
     // Request full spectrum at this pixel
-    worker.postMessage({ type: 'extractSpectrum', x, y, frameIndex: currentFrame })
-  }, [metadata, setSelectedPixel, workerRef, currentFrame, annotationMode])
+    worker.postMessage({ type: 'extractSpectrum', x, y, isPin, frameIndex: currentFrame })
+  }, [workerRef, metadata, currentFrame, annotationMode, setSelectedPixel, setPixelValue])
 
   // ─────────────────────────────────────────────────────────────
   // Spectral panel drag-resize

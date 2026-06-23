@@ -241,7 +241,7 @@ function handleExtractBand({ bandIndex, frameIndex = 0 }) {
 // ---------------------------------------------------------------------------
 // extractSpectrum — get all band values for a specific pixel
 // ---------------------------------------------------------------------------
-function handleExtractSpectrum({ x, y, frameIndex = 0 }) {
+function handleExtractSpectrum({ x, y, isPin = false, frameIndex = 0 }) {
   const frame = frames[frameIndex] || { datacube, meta };
   if (!frame.datacube || !frame.meta) {
     self.postMessage({ type: 'error', message: 'No datacube loaded' });
@@ -277,6 +277,7 @@ function handleExtractSpectrum({ x, y, frameIndex = 0 }) {
       wavelengths: wl,
       x,
       y,
+      isPin,
     },
     [spectrum.buffer, wl.buffer]  // Transfer both
   );

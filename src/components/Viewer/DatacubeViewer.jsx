@@ -466,7 +466,7 @@ export default function DatacubeViewer({ bandImage, rgbImage, bandStats, onPixel
     if (e.button === 0 && annotationMode === 'view') {
       const coords = screenToImage(e.clientX, e.clientY)
       if (coords && onPixelClick) {
-        onPixelClick(coords.x, coords.y)
+        onPixelClick(coords.x, coords.y, e.shiftKey)
       }
     }
 

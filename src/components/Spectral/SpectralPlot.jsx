@@ -150,13 +150,86 @@ export default function SpectralPlot({ spectrumData }) {
     )
   }
 
+  const addPinnedSpectrum = useAppStore(s => s.addPinnedSpectrum)
+  const removePinnedSpectrum = useAppStore(s => s.removePinnedSpectrum)
+
+  const handlePin = () => {
+    if (!spectrumData) return
+    const h = (pinnedSpectra.length * 60 + 180) % 360
+    addPinnedSpectrum({
+      x: spectrumData.x,
+      y: spectrumData.y,
+      spectrum: spectrumData.spectrum,
+      wavelengths: spectrumData.wavelengths,
+      color: `hsl(${h}, 70%, 60%)`,
+      label: `Pixel (${spectrumData.x}, ${spectrumData.y})`
+    })
+  }
+
   return (
-    <Plot
-      data={plotData}
-      layout={layout}
-      config={config}
-      style={{ width: '100%', height: '100%' }}
-      useResizeHandler
-    />
+    <div style={{ width: '100%', height: '100%', position: 'relative' }}>
+      <Plot
+        data={plotData}
+        layout={layout}
+        config={config}
+        style={{ width: '100%', height: '100%' }}
+        useResizeHandler
+      />
+      
+      {/* Pinned Spectra UI overlay */}
+      <div style={{
+        position: 'absolute',
+        top: '10px',
+        right: '10px',
+        display: 'flex',
+        flexDirection: 'column',
+        gap: '8px',
+        zIndex: 10
+      }}>
+        <button
+          onClick={handlePin}
+          style={{
+            background: 'var(--bg-tertiary)',
+            border: 'var(--border-default)',
+            color: 'var(--text-primary)',
+            padding: '4px 8px',
+            borderRadius: '4px',
+            cursor: 'pointer',
+            fontSize: '12px'
+          }}
+        >
+          + Pin Current
+        </button>
+
+        {pinnedSpectra.map((pinned, i) => (
+          <div key={i} style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: '6px',
+            background: 'var(--bg-secondary)',
+            border: 'var(--border-default)',
+            padding: '4px 8px',
+            borderRadius: '4px',
+            fontSize: '12px'
+          }}>
+            <div style={{ width: 12, height: 12, borderRadius: '50%', background: pinned.color }} />
+            <span style={{ color: 'var(--text-primary)' }}>{pinned.label}</span>
+            <button
+              onClick={() => removePinnedSpectrum(i)}
+              style={{
+                background: 'transparent',
+                border: 'none',
+                color: 'var(--text-secondary)',
+                cursor: 'pointer',
+                padding: '0 4px',
+                marginLeft: '4px'
+              }}
+            >
+              ×
+            </button>
+          </div>
+        ))}
+      </div>
+    </div>
   )
 }
