@@ -401,9 +401,10 @@ export default function LandingPage({ datacubeRef, workerRef, onFormatDetected }
     <div className="landing-page">
       <div className="landing-content animate-slide-up">
         <h1 className="landing-title">HSI Studio</h1>
-        <p className="landing-subtitle">
-          View, analyze, and annotate hyperspectral images directly in your browser.
-          No installation required. Your data stays on your machine.
+        <p className="landing-subtitle" style={{ maxWidth: '600px', margin: '0 auto var(--space-xl)' }}>
+          Free online hyperspectral image analysis and datacube viewer. 
+          Load ENVI and NPZ formats, extract spectral signatures, and annotate directly in your browser. 
+          No installation required. Fast, secure, and your data never leaves your machine.
         </p>
 
         {error && (
