@@ -38,6 +38,7 @@ export default function DatacubeViewer({ bandImage, rgbImage, bandStats, onPixel
   const showMaskOverlay = useAppStore(s => s.showMaskOverlay)
   const maskOpacity = useAppStore(s => s.maskOpacity)
   const maskColor = useAppStore(s => s.maskColor)
+  const colormap = useAppStore(s => s.colormap)
 
   // Panning state
   const isPanningRef = useRef(false)
@@ -114,11 +115,12 @@ export default function DatacubeViewer({ bandImage, rgbImage, bandStats, onPixel
       const max = autoStretch && bandStats ? bandStats.percentile99 : (contrast.max ?? 1)
       const gamma = contrast.gamma ?? 1.0
 
+      renderer.setColormap(colormap)
       renderer.renderBand(bandImage, metadata.samples, metadata.lines, min, max, gamma)
     } else if (viewMode === 'rgb' && rgbImage) {
       renderer.renderRGB(rgbImage.data, rgbImage.width, rgbImage.height)
     }
-  }, [bandImage, rgbImage, bandStats, viewMode, metadata, contrast, autoStretch, renderTick])
+  }, [bandImage, rgbImage, bandStats, viewMode, metadata, contrast, autoStretch, renderTick, colormap])
 
   // ─── Convert screen coords to image coords ───
   const screenToImage = useCallback((clientX, clientY) => {
@@ -542,6 +544,17 @@ export default function DatacubeViewer({ bandImage, rgbImage, bandStats, onPixel
     }
   }, [zoom, setZoom, currentBand, setCurrentBand, viewMode, metadata, rgbBands, setRGBBands])
 
+  // ─── Attach wheel listener non-passively ───
+  useEffect(() => {
+    const container = containerRef.current
+    if (!container) return
+    
+    // We attach it manually with { passive: false } so we can call e.preventDefault()
+    // without the browser throwing passive event listener errors.
+    container.addEventListener('wheel', handleWheel, { passive: false })
+    return () => container.removeEventListener('wheel', handleWheel)
+  }, [handleWheel])
+
   // ─── Compute display dimensions ───
   const getDisplayStyle = useCallback(() => {
     if (!metadata || !containerRef.current) return {}
@@ -589,7 +602,6 @@ export default function DatacubeViewer({ bandImage, rgbImage, bandStats, onPixel
       onMouseUp={handleMouseUp}
       onMouseLeave={handleMouseUp}
       onDoubleClick={handleDoubleClick}
-      onWheel={handleWheel}
       style={{
         width: '100%',
         height: '100%',

@@ -1,3 +1,5 @@
+import { colormaps } from '../../lib/colorMaps'
+
 /**
  * WebGL2 Renderer for hyperspectral band images.
  * 
@@ -23,6 +25,7 @@ in vec2 v_texCoord;
 out vec4 fragColor;
 
 uniform sampler2D u_band;
+uniform sampler2D u_colormap;
 uniform float u_min;
 uniform float u_max;
 uniform float u_gamma;
@@ -37,7 +40,10 @@ void main() {
   // Apply gamma correction
   normalized = pow(normalized, 1.0 / u_gamma);
   
-  fragColor = vec4(normalized, normalized, normalized, 1.0);
+  // Lookup color from 1D colormap texture
+  vec3 color = texture(u_colormap, vec2(normalized, 0.5)).rgb;
+  
+  fragColor = vec4(color, 1.0);
 }
 `
 
@@ -157,10 +163,16 @@ export class WebGLBandRenderer {
     // Create textures
     this.bandTexture = gl.createTexture()
     this.rgbTexture = gl.createTexture()
+    this.colormapTexture = gl.createTexture()
+
+    // Initialize colormap to grayscale
+    this.currentColormap = null
+    this.setColormap('grayscale')
 
     // Get uniform locations
     this.uniforms = {
       band: gl.getUniformLocation(this.singleBandProgram, 'u_band'),
+      colormap: gl.getUniformLocation(this.singleBandProgram, 'u_colormap'),
       min: gl.getUniformLocation(this.singleBandProgram, 'u_min'),
       max: gl.getUniformLocation(this.singleBandProgram, 'u_max'),
       gamma: gl.getUniformLocation(this.singleBandProgram, 'u_gamma'),
@@ -172,7 +184,33 @@ export class WebGLBandRenderer {
   }
 
   /**
-   * Render a single band as grayscale
+   * Set the current colormap texture.
+   * @param {string} colormapName 
+   */
+  setColormap(colormapName) {
+    if (this.currentColormap === colormapName) return
+    this.currentColormap = colormapName
+    
+    const cmapFn = colormaps[colormapName] || colormaps['grayscale']
+    const lutData = new Uint8Array(256 * 3)
+    for (let i = 0; i < 256; i++) {
+      const color = cmapFn(i / 255.0)
+      lutData[i*3] = color[0]
+      lutData[i*3+1] = color[1]
+      lutData[i*3+2] = color[2]
+    }
+    
+    const gl = this.gl
+    gl.bindTexture(gl.TEXTURE_2D, this.colormapTexture)
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR)
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR)
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE)
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE)
+    gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGB, 256, 1, 0, gl.RGB, gl.UNSIGNED_BYTE, lutData)
+  }
+
+  /**
+   * Render a single band
    * @param {Float32Array} bandData - Raw band values
    * @param {number} width - Image width
    * @param {number} height - Image height
@@ -208,6 +246,11 @@ export class WebGLBandRenderer {
     gl.activeTexture(gl.TEXTURE0)
     gl.bindTexture(gl.TEXTURE_2D, this.bandTexture)
     gl.uniform1i(this.uniforms.band, 0)
+    
+    gl.activeTexture(gl.TEXTURE1)
+    gl.bindTexture(gl.TEXTURE_2D, this.colormapTexture)
+    gl.uniform1i(this.uniforms.colormap, 1)
+
     gl.uniform1f(this.uniforms.min, min)
     gl.uniform1f(this.uniforms.max, max)
     gl.uniform1f(this.uniforms.gamma, gamma)
@@ -260,6 +303,7 @@ export class WebGLBandRenderer {
     if (!gl) return
     gl.deleteTexture(this.bandTexture)
     gl.deleteTexture(this.rgbTexture)
+    gl.deleteTexture(this.colormapTexture)
     gl.deleteProgram(this.singleBandProgram)
     gl.deleteProgram(this.rgbProgram)
     gl.deleteVertexArray(this.singleVao)
