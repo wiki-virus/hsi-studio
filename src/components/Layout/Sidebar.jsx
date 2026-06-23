@@ -235,52 +235,56 @@ export default function Sidebar({ onRequestBand, onRequestRGB }) {
             value={brushOpacity}
             onChange={(e) => setBrushOpacity(parseFloat(e.target.value))}
           />
-
-          <div className="control-row" style={{ marginTop: 'var(--space-sm)' }}>
-            <span className="control-label">Mask Color</span>
-            <input
-              type="color"
-              value={maskColor}
-              onChange={(e) => setMaskColor(e.target.value)}
-              style={{
-                width: '28px',
-                height: '28px',
-                border: 'var(--border-default)',
-                borderRadius: 'var(--radius-sm)',
-                padding: '0',
-                cursor: 'pointer',
-                background: 'transparent',
-              }}
-            />
-          </div>
-
-          <div className="control-row" style={{ marginTop: 'var(--space-sm)' }}>
-            <span className="control-label">Mask Opacity</span>
-            <span className="control-value">{(maskOpacity * 100).toFixed(0)}%</span>
-          </div>
-          <input
-            type="range"
-            min={0}
-            max={1}
-            step={0.05}
-            value={maskOpacity}
-            onChange={(e) => setMaskOpacity(parseFloat(e.target.value))}
-          />
-
-          <div className="control-row" style={{ marginTop: 'var(--space-sm)' }}>
-            <span className="control-label">Show Mask</span>
-            <label className="toggle">
-              <input
-                type="checkbox"
-                checked={showMaskOverlay}
-                onChange={(e) => setShowMaskOverlay(e.target.checked)}
-              />
-              <div className="toggle-track" />
-              <div className="toggle-thumb" />
-            </label>
-          </div>
         </div>
       )}
+
+      {/* ─── Mask Options (always visible) ─── */}
+      <div className="sidebar-section">
+        <div className="sidebar-section-title">Mask Overlay</div>
+        <div className="control-row" style={{ marginTop: 'var(--space-sm)' }}>
+          <span className="control-label">Mask Color</span>
+          <input
+            type="color"
+            value={maskColor}
+            onChange={(e) => setMaskColor(e.target.value)}
+            style={{
+              width: '28px',
+              height: '28px',
+              border: 'var(--border-default)',
+              borderRadius: 'var(--radius-sm)',
+              padding: '0',
+              cursor: 'pointer',
+              background: 'transparent',
+            }}
+          />
+        </div>
+
+        <div className="control-row" style={{ marginTop: 'var(--space-sm)' }}>
+          <span className="control-label">Mask Opacity</span>
+          <span className="control-value">{(maskOpacity * 100).toFixed(0)}%</span>
+        </div>
+        <input
+          type="range"
+          min={0}
+          max={1}
+          step={0.05}
+          value={maskOpacity}
+          onChange={(e) => setMaskOpacity(parseFloat(e.target.value))}
+        />
+
+        <div className="control-row" style={{ marginTop: 'var(--space-sm)' }}>
+          <span className="control-label">Show Mask</span>
+          <label className="toggle">
+            <input
+              type="checkbox"
+              checked={showMaskOverlay}
+              onChange={(e) => setShowMaskOverlay(e.target.checked)}
+            />
+            <div className="toggle-track" />
+            <div className="toggle-thumb" />
+          </label>
+        </div>
+      </div>
     </div>
   )
 }
