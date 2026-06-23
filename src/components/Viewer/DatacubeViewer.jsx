@@ -164,9 +164,6 @@ export default function DatacubeViewer({ bandImage, rgbImage, bandStats, onPixel
     const imgLeft = (containerW - displayW) / 2
     const imgTop = (containerH - displayH) / 2
 
-    const imgLeft = (containerW - displayW) / 2
-    const imgTop = (containerH - displayH) / 2
-
     // Update the visual scale of a single image pixel on screen
     const currentScale = zoom * (displayW / metadata.samples)
     setCursorScale(currentScale)
@@ -253,7 +250,8 @@ export default function DatacubeViewer({ bandImage, rgbImage, bandStats, onPixel
     ctx.clearRect(0, 0, canvas.width, canvas.height)
 
     if (polygonPoints.length > 0 || lassoPointsRef.current.length > 0) {
-      ctx.strokeStyle = maskColor
+      const activeColor = classes.find(c => c.id === activeClassId)?.color || '#ff0000'
+      ctx.strokeStyle = activeColor
       ctx.lineWidth = 2 / zoom
       ctx.setLineDash([5 / zoom, 5 / zoom])
       
@@ -286,7 +284,7 @@ export default function DatacubeViewer({ bandImage, rgbImage, bandStats, onPixel
       }
       ctx.setLineDash([])
     }
-  }, [metadata, maskColor, polygonPoints, screenMousePos, screenToImage, zoom])
+  }, [metadata, classes, activeClassId, polygonPoints, screenMousePos, screenToImage, zoom])
 
   useEffect(() => {
     redrawMask()
