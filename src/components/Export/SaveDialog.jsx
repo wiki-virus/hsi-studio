@@ -186,10 +186,10 @@ export default function SaveDialog({ isOpen, onClose, workerRef, canvasRef, mask
           const { default: JSZip } = await import('jszip')
           const zip = new JSZip()
 
-          // Datacube array (shape: [lines, samples, bands] for BIP)
+          // Datacube array (shape: [bands, lines, samples] since worker now exports BSQ)
           const cubeNpy = createNpyBuffer(
             datacubeData.data,
-            [metadata.lines, metadata.samples, metadata.bands],
+            [metadata.bands, metadata.lines, metadata.samples],
             '<f4'
           )
           zip.file('datacube.npy', cubeNpy)
