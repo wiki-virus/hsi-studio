@@ -3,8 +3,6 @@ import useAppStore from './stores/useAppStore'
 import LandingPage from './pages/LandingPage'
 import ViewerPage from './pages/ViewerPage'
 
-import { Analytics } from "@vercel/analytics/react"
-
 export default function App() {
   const fileLoaded = useAppStore(s => s.fileLoaded)
   
@@ -15,14 +13,9 @@ export default function App() {
   // Track the input file format so save dialog can default to it
   const [inputFormat, setInputFormat] = useState(null) // 'envi' | 'npz'
 
-  return (
-    <>
-      {fileLoaded ? (
-        <ViewerPage datacubeRef={datacubeRef} workerRef={workerRef} inputFormat={inputFormat} />
-      ) : (
-        <LandingPage datacubeRef={datacubeRef} workerRef={workerRef} onFormatDetected={setInputFormat} />
-      )}
-      <Analytics />
-    </>
+  return fileLoaded ? (
+    <ViewerPage datacubeRef={datacubeRef} workerRef={workerRef} inputFormat={inputFormat} />
+  ) : (
+    <LandingPage datacubeRef={datacubeRef} workerRef={workerRef} onFormatDetected={setInputFormat} />
   )
 }
