@@ -13,6 +13,8 @@
 
 <br />
 
+**Live Demo:** [https://hsi-studio.vercel.app](https://hsi-studio.vercel.app)
+
 A fast, browser-based Hyperspectral Image (HSI) viewer and annotation tool. Built for scientific imaging data with high-performance WebGL rendering and Web Worker data processing.
 
 ## 🚀 Features
@@ -37,24 +39,6 @@ A fast, browser-based Hyperspectral Image (HSI) viewer and annotation tool. Buil
 4. **Annotating:** Select the "Brush" tool from the top toolbar to paint masks. You can toggle between a soft gradient brush or a binary mask brush in the sidebar.
 5. **Cropping:** Select the "Crop" tool, drag a rectangle over the image, and click "Apply Crop" to extract a sub-region.
 6. **Exporting:** Click the "Save" button in the top right to download your cropped datacube, RGB image, or annotation masks.
-
-## 💻 Local Development
-
-### Prerequisites
-- Node.js (v16+ recommended)
-- npm or yarn
-
-### Installation
-
-1. Clone the repository
-2. Install dependencies:
-   ```bash
-   npm install
-   ```
-3. Start the development server:
-   ```bash
-   npm run dev
-   ```
 
 ## ⚖️ Copyright & License
 
