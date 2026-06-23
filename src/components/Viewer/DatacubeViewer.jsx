@@ -63,6 +63,12 @@ export default function DatacubeViewer({ bandImage, rgbImage, bandStats, onPixel
   const isPaintingRef = useRef(false)
   const lastPaintPosRef = useRef(null)
 
+  // Polygon & Lasso state
+  const [polygonPoints, setPolygonPoints] = useState([])
+  const isLassoingRef = useRef(false)
+  const lassoPointsRef = useRef([])
+  const isSpaceDownRef = useRef(false)
+
   // Crop rectangle state
   const [cropRect, setCropRect] = useState(null) // { x, y, w, h } in image coords
   const cropStartRef = useRef(null) // starting image coords for rectangle drag
@@ -107,8 +113,50 @@ export default function DatacubeViewer({ bandImage, rgbImage, bandStats, onPixel
     }
   }, [bandImage, rgbImage, bandStats, viewMode, metadata, contrast, autoStretch, renderTick])
 
-  // ─── Redraw annotation overlay ───
-  useEffect(() => {
+  // ─── Convert screen coords to image coords ───
+  const screenToImage = useCallback((clientX, clientY) => {
+    const container = containerRef.current
+    if (!container || !metadata) return null
+
+    const rect = container.getBoundingClientRect()
+    
+    // Reverse the pan and zoom
+    const containerX = clientX - rect.left
+    const containerY = clientY - rect.top
+    
+    const unscaledX = (containerX - panOffset.x) / zoom
+    const unscaledY = (containerY - panOffset.y) / zoom
+
+    // Calculate actual displayed dimensions
+    const containerW = rect.width
+    const containerH = rect.height
+    const imageAspect = metadata.samples / metadata.lines
+    const containerAspect = containerW / containerH
+
+    let displayW, displayH
+    if (imageAspect > containerAspect) {
+      displayW = containerW
+      displayH = containerW / imageAspect
+    } else {
+      displayH = containerH
+      displayW = containerH * imageAspect
+    }
+
+    // Map to 0-1 range
+    const normX = unscaledX / displayW
+    const normY = unscaledY / displayH
+
+    // Map to pixel coords
+    const px = Math.floor(normX * metadata.samples)
+    const py = Math.floor(normY * metadata.lines)
+
+    if (px < 0 || py < 0 || px >= metadata.samples || py >= metadata.lines) return null
+
+    return { x: px, y: py }
+  }, [metadata, zoom, panOffset])
+
+  // ─── Draw overlays (mask and shapes) ───
+  const redrawOverlay = useCallback(() => {
     const canvas = annotationCanvasRef.current
     if (!canvas || !metadata) return
 
@@ -139,47 +187,102 @@ export default function DatacubeViewer({ bandImage, rgbImage, bandStats, onPixel
     }
 
     ctx.putImageData(imageData, 0, 0)
-  }, [metadata, showMaskOverlay, maskOpacity, maskColor, renderTick])
 
-  // ─── Convert screen coords to image coords ───
-  const screenToImage = useCallback((clientX, clientY) => {
-    const container = containerRef.current
-    if (!container || !metadata) return null
+    // Draw active polygon / lasso paths
+    if (polygonPoints.length > 0 || lassoPointsRef.current.length > 0) {
+      ctx.strokeStyle = maskColor
+      ctx.lineWidth = 2 / zoom
+      ctx.setLineDash([5 / zoom, 5 / zoom])
+      
+      const drawPath = (points, close) => {
+        if (points.length === 0) return
+        ctx.beginPath()
+        ctx.moveTo(points[0].x, points[0].y)
+        for (let i = 1; i < points.length; i++) {
+          ctx.lineTo(points[i].x, points[i].y)
+        }
+        if (close) ctx.closePath()
+        ctx.stroke()
+      }
 
-    const rect = container.getBoundingClientRect()
-    const containerW = rect.width
-    const containerH = rect.height
+      if (polygonPoints.length > 0) {
+        drawPath(polygonPoints, false)
+        // Draw line from last point to current mouse pos if available
+        if (screenMousePos) {
+          const mCoords = screenToImage(screenMousePos.x, screenMousePos.y)
+          if (mCoords) {
+            ctx.beginPath()
+            ctx.moveTo(polygonPoints[polygonPoints.length - 1].x, polygonPoints[polygonPoints.length - 1].y)
+            ctx.lineTo(mCoords.x, mCoords.y)
+            ctx.stroke()
+          }
+        }
+      }
 
-    // Image display dimensions (fit inside container with aspect ratio)
-    const imageAspect = metadata.samples / metadata.lines
-    const containerAspect = containerW / containerH
-
-    let displayW, displayH
-    if (imageAspect > containerAspect) {
-      displayW = containerW * zoom
-      displayH = (containerW / imageAspect) * zoom
-    } else {
-      displayH = containerH * zoom
-      displayW = (containerH * imageAspect) * zoom
+      if (lassoPointsRef.current.length > 0) {
+        drawPath(lassoPointsRef.current, false)
+      }
+      ctx.setLineDash([])
     }
+  }, [metadata, showMaskOverlay, maskOpacity, maskColor, polygonPoints, screenMousePos, screenToImage, zoom])
 
-    // Image origin in container space
-    const originX = (containerW - displayW) / 2 + panOffset.x
-    const originY = (containerH - displayH) / 2 + panOffset.y
+  useEffect(() => {
+    redrawOverlay()
+  }, [redrawOverlay, renderTick])
 
-    // Mouse position relative to image origin
-    const relX = clientX - rect.left - originX
-    const relY = clientY - rect.top - originY
-
-    // Convert to image pixel coords
-    const imgX = Math.floor((relX / displayW) * metadata.samples)
-    const imgY = Math.floor((relY / displayH) * metadata.lines)
-
-    if (imgX >= 0 && imgX < metadata.samples && imgY >= 0 && imgY < metadata.lines) {
-      return { x: imgX, y: imgY }
+  // ─── Fill Polygon Algorithm ───
+  const fillPolygon = useCallback((points) => {
+    if (!metadata || !maskRef.current || points.length < 3) return
+    const canvas = document.createElement('canvas')
+    canvas.width = metadata.samples
+    canvas.height = metadata.lines
+    const ctx = canvas.getContext('2d', { willReadFrequently: true })
+    
+    ctx.fillStyle = '#ffffff'
+    ctx.beginPath()
+    ctx.moveTo(points[0].x, points[0].y)
+    for (let i = 1; i < points.length; i++) {
+      ctx.lineTo(points[i].x, points[i].y)
     }
-    return null
-  }, [metadata, zoom, panOffset])
+    ctx.closePath()
+    ctx.fill()
+    
+    const imgData = ctx.getImageData(0, 0, canvas.width, canvas.height).data
+    const mask = maskRef.current
+    for (let i = 0; i < mask.length; i++) {
+      if (imgData[i * 4] > 0) {
+        mask[i] = 255
+      }
+    }
+    redrawOverlay()
+  }, [metadata, redrawOverlay])
+
+  // ─── Keyboard Shortcuts ───
+  useEffect(() => {
+    const handleKeyDown = (e) => {
+      if (e.code === 'Space' && !isSpaceDownRef.current) {
+        e.preventDefault()
+        isSpaceDownRef.current = true
+        if (containerRef.current) containerRef.current.style.cursor = 'grab'
+      } else if (e.key === '[') {
+        useAppStore.setState(s => ({ brushSize: Math.max(1, s.brushSize - 2) }))
+      } else if (e.key === ']') {
+        useAppStore.setState(s => ({ brushSize: Math.min(100, s.brushSize + 2) }))
+      }
+    }
+    const handleKeyUp = (e) => {
+      if (e.code === 'Space') {
+        isSpaceDownRef.current = false
+        if (containerRef.current) containerRef.current.style.cursor = 'crosshair'
+      }
+    }
+    window.addEventListener('keydown', handleKeyDown)
+    window.addEventListener('keyup', handleKeyUp)
+    return () => {
+      window.removeEventListener('keydown', handleKeyDown)
+      window.removeEventListener('keyup', handleKeyUp)
+    }
+  }, [])
 
   // ─── Paint on annotation mask ───
   const paintAt = useCallback((imgX, imgY, erase = false) => {
@@ -238,36 +341,17 @@ export default function DatacubeViewer({ bandImage, rgbImage, bandStats, onPixel
         lastPaintPosRef.current = coords
         paintAt(coords.x, coords.y, annotationMode === 'eraser')
         // Force overlay re-render
-        const canvas = annotationCanvasRef.current
-        if (canvas && metadata) {
-          const ctx = canvas.getContext('2d')
-          ctx.clearRect(0, 0, canvas.width, canvas.height)
-          // Redraw mask
-          const r = parseInt(maskColor.slice(1, 3), 16)
-          const g = parseInt(maskColor.slice(3, 5), 16)
-          const b = parseInt(maskColor.slice(5, 7), 16)
-          const imageData = ctx.createImageData(canvas.width, canvas.height)
-          const mask = maskRef.current
-          for (let i = 0; i < mask.length; i++) {
-            if (mask[i] > 0) {
-              const idx = i * 4
-              imageData.data[idx] = r
-              imageData.data[idx + 1] = g
-              imageData.data[idx + 2] = b
-              imageData.data[idx + 3] = Math.floor(maskOpacity * 255 * (mask[i] / 255))
-            }
-          }
-          ctx.putImageData(imageData, 0, 0)
-        }
+        redrawOverlay()
       }
       return
     }
 
     // Middle mouse or view mode: start panning
-    if (e.button === 1 || (e.button === 0 && annotationMode === 'view' && e.shiftKey)) {
+    if (e.button === 1 || isSpaceDownRef.current || (e.button === 0 && annotationMode === 'view' && e.shiftKey)) {
       isPanningRef.current = true
       panStartRef.current = { x: e.clientX, y: e.clientY }
       panOffsetStartRef.current = { ...panOffset }
+      if (containerRef.current) containerRef.current.style.cursor = 'grabbing'
       e.preventDefault()
       return
     }
@@ -288,8 +372,43 @@ export default function DatacubeViewer({ bandImage, rgbImage, bandStats, onPixel
         cropStartRef.current = coords
         setCropRect({ x: coords.x, y: coords.y, w: 0, h: 0 })
       }
+      return
     }
-  }, [annotationMode, screenToImage, onPixelClick, panOffset, paintAt, maskColor, maskOpacity, metadata])
+
+    // Polygon mode
+    if (e.button === 0 && annotationMode === 'polygon') {
+      const coords = screenToImage(e.clientX, e.clientY)
+      if (coords) {
+        if (polygonPoints.length > 2) {
+          const first = polygonPoints[0]
+          // Calculate distance in screen pixels to be zoom-independent
+          const dx = coords.x - first.x
+          const dy = coords.y - first.y
+          // Convert image pixel distance to screen pixel distance
+          const distScreen = Math.sqrt(dx * dx + dy * dy) * zoom
+          
+          // If clicked within 10 screen pixels of the first point, close it
+          if (distScreen < 10) {
+            fillPolygon(polygonPoints)
+            setPolygonPoints([])
+            return
+          }
+        }
+        setPolygonPoints(prev => [...prev, coords])
+      }
+      return
+    }
+
+    // Lasso mode
+    if (e.button === 0 && annotationMode === 'lasso') {
+      const coords = screenToImage(e.clientX, e.clientY)
+      if (coords) {
+        isLassoingRef.current = true
+        lassoPointsRef.current = [coords]
+      }
+      return
+    }
+  }, [annotationMode, screenToImage, onPixelClick, panOffset, paintAt, redrawOverlay])
 
   const handleMouseMove = useCallback((e) => {
     // Update cursor position for brush preview
@@ -314,26 +433,7 @@ export default function DatacubeViewer({ bandImage, rgbImage, bandStats, onPixel
         lastPaintPosRef.current = coords
 
         // Quick overlay redraw
-        const canvas = annotationCanvasRef.current
-        if (canvas && metadata) {
-          const ctx = canvas.getContext('2d')
-          ctx.clearRect(0, 0, canvas.width, canvas.height)
-          const r = parseInt(maskColor.slice(1, 3), 16)
-          const g = parseInt(maskColor.slice(3, 5), 16)
-          const b = parseInt(maskColor.slice(5, 7), 16)
-          const imageData = ctx.createImageData(canvas.width, canvas.height)
-          const mask = maskRef.current
-          for (let i = 0; i < mask.length; i++) {
-            if (mask[i] > 0) {
-              const idx = i * 4
-              imageData.data[idx] = r
-              imageData.data[idx + 1] = g
-              imageData.data[idx + 2] = b
-              imageData.data[idx + 3] = Math.floor(maskOpacity * 255 * (mask[i] / 255))
-            }
-          }
-          ctx.putImageData(imageData, 0, 0)
-        }
+        redrawOverlay()
       }
     }
 
@@ -351,12 +451,23 @@ export default function DatacubeViewer({ bandImage, rgbImage, bandStats, onPixel
         })
       }
     }
-  }, [screenToImage, setPanOffset, annotationMode, paintLine, maskColor, maskOpacity, metadata])
+
+    // Lasso drag
+    if (isLassoingRef.current) {
+      const coords = screenToImage(e.clientX, e.clientY)
+      if (coords) {
+        lassoPointsRef.current.push(coords)
+      }
+    }
+  }, [screenToImage, setPanOffset, annotationMode, paintLine, redrawOverlay])
 
   const handleMouseUp = useCallback((e) => {
     isPanningRef.current = false
     isPaintingRef.current = false
     lastPaintPosRef.current = null
+    if (containerRef.current && !isSpaceDownRef.current) {
+      containerRef.current.style.cursor = 'crosshair'
+    }
 
     // Finalize crop rectangle
     if (isCroppingRef.current && cropRect && cropRect.w > 2 && cropRect.h > 2) {
@@ -368,7 +479,23 @@ export default function DatacubeViewer({ bandImage, rgbImage, bandStats, onPixel
     } else {
       isCroppingRef.current = false
     }
-  }, [cropRect, onCropSelect])
+
+    // Finalize Lasso
+    if (isLassoingRef.current) {
+      isLassoingRef.current = false
+      if (lassoPointsRef.current.length > 2) {
+        fillPolygon(lassoPointsRef.current)
+      }
+      lassoPointsRef.current = []
+    }
+  }, [cropRect, onCropSelect, fillPolygon])
+
+  const handleDoubleClick = useCallback((e) => {
+    if (annotationMode === 'polygon' && polygonPoints.length > 2) {
+      fillPolygon(polygonPoints)
+      setPolygonPoints([])
+    }
+  }, [annotationMode, polygonPoints, fillPolygon])
 
   // ─── Zoom/Scroll with mouse wheel ───
   const handleWheel = useCallback((e) => {
@@ -399,6 +526,10 @@ export default function DatacubeViewer({ bandImage, rgbImage, bandStats, onPixel
         const newB = clamp(rgbBands.b)
         if (newR !== rgbBands.r || newG !== rgbBands.g || newB !== rgbBands.b) {
           setRGBBands({ r: newR, g: newG, b: newB })
+          const newBand = clamp(currentBand)
+          if (newBand !== currentBand) {
+            setCurrentBand(newBand)
+          }
         }
       }
     }
@@ -445,14 +576,24 @@ export default function DatacubeViewer({ bandImage, rgbImage, bandStats, onPixel
   return (
     <div
       ref={containerRef}
-      className="viewer-container"
-      style={{ cursor: cursorStyle }}
+      className="datacube-canvas-container"
       onMouseDown={handleMouseDown}
       onMouseMove={handleMouseMove}
       onMouseUp={handleMouseUp}
       onMouseLeave={handleMouseUp}
+      onDoubleClick={handleDoubleClick}
       onWheel={handleWheel}
-      onContextMenu={(e) => e.preventDefault()}
+      style={{
+        width: '100%',
+        height: '100%',
+        position: 'relative',
+        overflow: 'hidden',
+        cursor: cursorStyle,
+        touchAction: 'none', // Prevent browser panning
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+      }}
     >
       {metadata ? (
         <div className="viewer-canvas-wrapper" style={displayStyle}>

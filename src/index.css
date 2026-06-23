@@ -236,19 +236,23 @@ body {
 .sidebar {
   width: var(--sidebar-width);
   min-width: var(--sidebar-width);
-  background: var(--glass-bg);
-  backdrop-filter: blur(20px);
+  background: var(--bg-primary);
   border-right: var(--border-subtle);
   display: flex;
   flex-direction: column;
   overflow-y: auto;
   overflow-x: hidden;
   z-index: 50;
+  padding: var(--space-md);
+  gap: var(--space-md);
 }
 
 .sidebar-section {
-  padding: var(--space-lg);
-  border-bottom: var(--border-subtle);
+  background: var(--bg-secondary);
+  border: 1px solid rgba(255, 255, 255, 0.05);
+  border-radius: var(--radius-md);
+  padding: var(--space-md);
+  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.2);
 }
 
 .sidebar-section-title {

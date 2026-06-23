@@ -48,7 +48,17 @@ export default function Sidebar({ onRequestBand, onRequestRGB }) {
 
   const handleBandChange = (e) => {
     const band = parseInt(e.target.value, 10)
+    const delta = band - currentBand
     setCurrentBand(band)
+
+    if (viewMode === 'rgb') {
+      const clamp = (v) => Math.max(0, Math.min(totalBands - 1, v + delta))
+      setRGBBands({
+        r: clamp(rgbBands.r),
+        g: clamp(rgbBands.g),
+        b: clamp(rgbBands.b)
+      })
+    }
   }
 
   const handleRGBChannel = (channel, value) => {

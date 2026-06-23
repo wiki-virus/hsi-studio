@@ -6,6 +6,7 @@ import StatusBar from '../components/Layout/StatusBar'
 import DatacubeViewer from '../components/Viewer/DatacubeViewer'
 import SpectralPlot from '../components/Spectral/SpectralPlot'
 import SaveDialog from '../components/Export/SaveDialog'
+import Timeline from '../components/Layout/Timeline'
 
 /**
  * ViewerPage — main page shown after a file is loaded.
@@ -22,6 +23,7 @@ export default function ViewerPage({ datacubeRef, workerRef, inputFormat }) {
   const viewMode = useAppStore(s => s.viewMode)
   const rgbBands = useAppStore(s => s.rgbBands)
   const metadata = useAppStore(s => s.metadata)
+  const currentFrame = useAppStore(s => s.currentFrame)
   const showSpectralPlot = useAppStore(s => s.showSpectralPlot)
   const setSelectedPixel = useAppStore(s => s.setSelectedPixel)
   const setFileLoaded = useAppStore(s => s.setFileLoaded)
@@ -90,7 +92,8 @@ export default function ViewerPage({ datacubeRef, workerRef, inputFormat }) {
         }
 
         case 'error': {
-          console.error('[Worker Error]', e.data.message)
+          console.error('Worker error:', e.data.message)
+          alert('Worker error: ' + e.data.message)
           break
         }
 
@@ -126,9 +129,9 @@ export default function ViewerPage({ datacubeRef, workerRef, inputFormat }) {
   useEffect(() => {
     const worker = workerRef.current
     if (worker) {
-      worker.postMessage({ type: 'extractBand', bandIndex: 0 })
+      worker.postMessage({ type: 'extractBand', bandIndex: 0, frameIndex: currentFrame })
     }
-  }, [workerRef])
+  }, [workerRef, currentFrame])
 
   // ─────────────────────────────────────────────────────────────
   // Request new band when currentBand changes
@@ -137,8 +140,8 @@ export default function ViewerPage({ datacubeRef, workerRef, inputFormat }) {
     const worker = workerRef.current
     if (!worker || viewMode !== 'single') return
 
-    worker.postMessage({ type: 'extractBand', bandIndex: currentBand })
-  }, [currentBand, viewMode, workerRef])
+    worker.postMessage({ type: 'extractBand', bandIndex: currentBand, frameIndex: currentFrame })
+  }, [currentBand, viewMode, workerRef, currentFrame])
 
   // ─────────────────────────────────────────────────────────────
   // Request RGB composite when rgbBands or viewMode changes
@@ -152,8 +155,9 @@ export default function ViewerPage({ datacubeRef, workerRef, inputFormat }) {
       rBand: rgbBands.r,
       gBand: rgbBands.g,
       bBand: rgbBands.b,
+      frameIndex: currentFrame
     })
-  }, [rgbBands, viewMode, workerRef])
+  }, [rgbBands, viewMode, workerRef, currentFrame])
 
   // ─────────────────────────────────────────────────────────────
   // Handle pixel click → request spectrum from worker
@@ -170,9 +174,9 @@ export default function ViewerPage({ datacubeRef, workerRef, inputFormat }) {
     // Request full spectrum at this pixel
     const worker = workerRef.current
     if (worker) {
-      worker.postMessage({ type: 'extractSpectrum', x, y })
+      worker.postMessage({ type: 'extractSpectrum', x, y, frameIndex: currentFrame })
     }
-  }, [metadata, setSelectedPixel, workerRef])
+  }, [metadata, setSelectedPixel, workerRef, currentFrame])
 
   // ─────────────────────────────────────────────────────────────
   // Spectral panel drag-resize
@@ -217,6 +221,33 @@ export default function ViewerPage({ datacubeRef, workerRef, inputFormat }) {
   // ─────────────────────────────────────────────────────────────
   // Render
   // ─────────────────────────────────────────────────────────────
+  // ─────────────────────────────────────────────────────────────
+  // Global Keyboard Shortcuts
+  // ─────────────────────────────────────────────────────────────
+  useEffect(() => {
+    const handleGlobalKeyDown = (e) => {
+      // Don't trigger if user is typing in an input
+      if (e.target.tagName.toLowerCase() === 'input' || e.target.tagName.toLowerCase() === 'textarea') {
+        return
+      }
+      
+      const key = e.key.toLowerCase()
+      switch (key) {
+        case 'v': setAnnotationMode('view'); break;
+        case 'c': setAnnotationMode('rectangle'); break;
+        case 'b': setAnnotationMode('brush'); break;
+        case 'e': setAnnotationMode('eraser'); break;
+        case 'p': setAnnotationMode('polygon'); break;
+        case 'l': setAnnotationMode('lasso'); break;
+        case 's': useAppStore.getState().setViewMode('single'); break;
+        case 'r': useAppStore.getState().setViewMode('rgb'); break;
+        default: break;
+      }
+    }
+    window.addEventListener('keydown', handleGlobalKeyDown)
+    return () => window.removeEventListener('keydown', handleGlobalKeyDown)
+  }, [setAnnotationMode])
+
   return (
     <div className="app-layout">
       <Toolbar onSave={() => setShowSaveDialog(true)} />
@@ -225,6 +256,7 @@ export default function ViewerPage({ datacubeRef, workerRef, inputFormat }) {
         <Sidebar />
 
         <div className="viewer-area">
+          <Timeline />
           <DatacubeViewer
             bandImage={bandImageRef.current}
             rgbImage={rgbImageRef.current}

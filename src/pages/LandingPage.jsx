@@ -1,4 +1,5 @@
 import { useState, useCallback, useRef } from 'react'
+import { AlertTriangle, FolderUp, UploadCloud, X } from 'lucide-react'
 import useAppStore from '../stores/useAppStore'
 import { parseHeader } from '../lib/enviParser'
 
@@ -51,34 +52,51 @@ export default function LandingPage({ datacubeRef, workerRef, onFormatDetected }
     accumulatedFilesRef.current = fileArray
 
     const has = (re) => fileArray.find(f => re.test(f.name))
-    const hdrFile = has(/\.hdr$/i)
-    const npzFile = has(/\.npz$/i)
+    const hdrFiles = fileArray.filter(f => /\.hdr$/i.test(f.name))
+    const npzFiles = fileArray.filter(f => /\.npz$/i.test(f.name))
     const csvFile = has(/\.csv$/i)
     const tiffFile = has(/\.tiff?$/i)
-    const dataFile = has(DATA_EXT)
 
     setIsLoading(true)
+
     try {
-      if (hdrFile) {
-        // ENVI: need the matching binary data file too.
-        const data = findDataFile(hdrFile, fileArray)
-        if (!data) {
-          setNeedMore({ kind: 'data', name: hdrFile.name })
-          setIsLoading(false)
-          return
-        }
-        setNeedMore(null)
+      if (hdrFiles.length > 0) {
         onFormatDetected?.('envi')
-        await loadENVI(hdrFile, data)
+        
+        // Find matching data files for all HDRs
+        const validPairs = []
+        for (const hdr of hdrFiles) {
+          const dataFile = findDataFile(hdr, fileArray)
+          if (dataFile) {
+            validPairs.push({ hdr, dataFile })
+          } else {
+            // Need more files
+            setNeedMore({ kind: 'data', name: hdr.name })
+            setIsLoading(false)
+            return
+          }
+        }
+
+        setNeedMore(null)
+        const series = []
+        for (const pair of validPairs) {
+          series.push(await loadENVI(pair.hdr, pair.dataFile))
+        }
+        await initWorkerTimeSeries(series)
         accumulatedFilesRef.current = []
-      } else if (dataFile) {
+
+      } else if (has(DATA_EXT) && hdrFiles.length === 0) {
         // Raw binary without a header — we can't interpret it. Ask for the .hdr.
-        setNeedMore({ kind: 'hdr', name: dataFile.name })
+        setNeedMore({ kind: 'hdr', name: has(DATA_EXT).name })
         setIsLoading(false)
         return
-      } else if (npzFile) {
+      } else if (npzFiles.length > 0) {
         onFormatDetected?.('npz')
-        await loadNPZ(npzFile)
+        const series = []
+        for (const npz of npzFiles) {
+          series.push(await loadNPZ(npz))
+        }
+        await initWorkerTimeSeries(series)
         accumulatedFilesRef.current = []
       } else if (csvFile) {
         onFormatDetected?.('csv')
@@ -93,9 +111,10 @@ export default function LandingPage({ datacubeRef, workerRef, onFormatDetected }
         throw new Error('Unsupported format. Upload ENVI (.hdr + data), NumPy (.npz), TIFF (.tif/.tiff), or CSV (.csv).')
       }
     } catch (err) {
-      console.error('File load error:', err)
+      console.error(err)
       setError(err.message)
       setIsLoading(false)
+      alert('Error parsing file: ' + err.message)
       setNeedMore(null)
       accumulatedFilesRef.current = []
     }
@@ -138,8 +157,7 @@ export default function LandingPage({ datacubeRef, workerRef, onFormatDetected }
       )
     }
 
-    setLoadingStatus('Initializing worker...')
-    await initWorker(buffer, metadata, hdrFile.name.replace(/\.hdr$/i, ''))
+    return { buffer, metadata, fileName: hdrFile.name.replace(/\.hdr$/i, '') }
   }
 
   const loadNPZ = async (npzFile) => {
@@ -162,12 +180,28 @@ export default function LandingPage({ datacubeRef, workerRef, onFormatDetected }
     }
 
     const cube = arrays[cubeKey]
-    const [lines, samples, bands] = cube.shape
-
-    // Look for wavelengths array
+    
+    // Look for wavelengths array first so we can use its length to detect shape
     const wlKeys = ['wavelengths', 'wavelength', 'wl', 'wvl', 'lambda']
     const wlKey = wlKeys.find(k => arrays[k])
     const wavelengths = wlKey ? Array.from(arrays[wlKey].data) : null
+
+    let lines, samples, bands, shapeOrder;
+    const numBands = wavelengths ? wavelengths.length : -1;
+
+    if (cube.shape[0] === numBands || (!wavelengths && cube.shape[0] <= cube.shape[1] && cube.shape[0] <= cube.shape[2])) {
+      // (B, H, W)
+      bands = cube.shape[0]
+      lines = cube.shape[1]
+      samples = cube.shape[2]
+      shapeOrder = 'BHW'
+    } else {
+      // (H, W, B)
+      lines = cube.shape[0]
+      samples = cube.shape[1]
+      bands = cube.shape[2]
+      shapeOrder = 'HWB'
+    }
 
     // Look for mask
     const maskKeys = ['mask', 'labels', 'gt', 'ground_truth', 'annotation']
@@ -179,7 +213,11 @@ export default function LandingPage({ datacubeRef, workerRef, onFormatDetected }
       bands,
       dataType: 4, // float32
       dataTypeSize: 4,
-      interleave: 'bip', // numpy default: [H, W, B] = BIP
+      interleave: 'numpy', // Custom flag
+      shapeOrder,
+      fortranOrder: cube.fortranOrder,
+
+
       byteOrder: 0, // little endian
       wavelengths,
       hasMask: !!maskKey,
@@ -198,8 +236,7 @@ export default function LandingPage({ datacubeRef, workerRef, onFormatDetected }
       dataBuffer = float32.buffer
     }
 
-    setLoadingStatus('Initializing worker...')
-    await initWorker(dataBuffer, metadata, npzFile.name.replace(/\.npz$/i, ''))
+    return { buffer: dataBuffer, metadata, fileName: npzFile.name.replace(/\.npz$/i, '') }
   }
 
   const loadCSV = async (csvFile) => {
@@ -207,8 +244,8 @@ export default function LandingPage({ datacubeRef, workerRef, onFormatDetected }
     const text = await csvFile.text()
     const { parseCsv } = await import('../lib/csvParser')
     const { datacube, metadata } = parseCsv(text)
-    setLoadingStatus('Initializing worker...')
-    await initWorker(datacube.buffer, metadata, csvFile.name.replace(/\.csv$/i, ''))
+    const series = [{ buffer: datacube.buffer, metadata, fileName: csvFile.name.replace(/\.csv$/i, '') }]
+    await initWorkerTimeSeries(series)
   }
 
   const loadTIFF = async (tiffFile) => {
@@ -216,11 +253,16 @@ export default function LandingPage({ datacubeRef, workerRef, onFormatDetected }
     const { parseTiff } = await import('../lib/tiffParser')
     const buffer = await tiffFile.arrayBuffer()
     const { datacube, metadata } = parseTiff(buffer)
-    setLoadingStatus('Initializing worker...')
-    await initWorker(datacube.buffer, metadata, tiffFile.name.replace(/\.tiff?$/i, ''))
+    const series = [{ buffer: datacube.buffer, metadata, fileName: tiffFile.name.replace(/\.tiff?$/i, '') }]
+    await initWorkerTimeSeries(series)
   }
 
-  const initWorker = async (buffer, metadata, fileName) => {
+  const initWorkerTimeSeries = async (series) => {
+    // Sort series alphabetically by filename
+    series.sort((a, b) => a.fileName.localeCompare(b.fileName))
+
+    setLoadingStatus('Initializing worker...')
+
     // Create web worker
     const worker = new Worker(
       new URL('../workers/datacubeWorker.js', import.meta.url),
@@ -228,13 +270,18 @@ export default function LandingPage({ datacubeRef, workerRef, onFormatDetected }
     )
 
     workerRef.current = worker
-    datacubeRef.current = buffer
+    datacubeRef.current = series[0].buffer // Store first frame buffer for backward compatibility
 
     return new Promise((resolve, reject) => {
       worker.onmessage = (e) => {
-        if (e.data.type === 'ready') {
+        if (e.data.type === 'ready' || e.data.type === 'timeSeriesReady') {
           setIsLoading(false)
-          setFileLoaded(fileName, metadata)
+          
+          const setTimeSeriesLoaded = useAppStore.getState().setTimeSeriesLoaded
+          setTimeSeriesLoaded(
+            series.map(s => s.fileName),
+            series.map(s => s.metadata)
+          )
           resolve()
         } else if (e.data.type === 'error') {
           reject(new Error(e.data.message))
@@ -245,11 +292,18 @@ export default function LandingPage({ datacubeRef, workerRef, onFormatDetected }
         reject(new Error('Worker initialization failed: ' + err.message))
       }
 
-      // Send datacube to worker
-      worker.postMessage(
-        { type: 'loadData', buffer, metadata },
-        [buffer]
-      )
+      if (series.length === 1) {
+        worker.postMessage(
+          { type: 'loadData', buffer: series[0].buffer, metadata: series[0].metadata },
+          [series[0].buffer]
+        )
+      } else {
+        const buffers = series.map(s => s.buffer)
+        worker.postMessage(
+          { type: 'loadTimeSeries', series },
+          buffers
+        )
+      }
     })
   }
 
@@ -300,8 +354,11 @@ export default function LandingPage({ datacubeRef, workerRef, onFormatDetected }
             color: 'var(--accent-red)',
             fontSize: 'var(--font-sm)',
             textAlign: 'left',
+            display: 'flex',
+            alignItems: 'center',
+            gap: 'var(--space-sm)'
           }}>
-            ⚠️ {error}
+            <AlertTriangle size={18} /> {error}
           </div>
         )}
 
@@ -329,7 +386,7 @@ export default function LandingPage({ datacubeRef, workerRef, onFormatDetected }
             </>
           ) : needMore ? (
             <>
-              <div className="dropzone-icon">📂</div>
+              <div className="dropzone-icon" style={{ display: 'flex', justifyContent: 'center' }}><FolderUp size={48} strokeWidth={1.5} /></div>
               <div className="dropzone-text">
                 {needMore.kind === 'data'
                   ? `Got the header "${needMore.name}". Now add its data file.`
@@ -345,15 +402,15 @@ export default function LandingPage({ datacubeRef, workerRef, onFormatDetected }
                   className="format-badge"
                   role="button"
                   onClick={(e) => { e.stopPropagation(); startOver() }}
-                  style={{ cursor: 'pointer' }}
+                  style={{ cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: '4px' }}
                 >
-                  ✕ Start over
+                  <X size={14} /> Start over
                 </span>
               </div>
             </>
           ) : (
             <>
-              <div className="dropzone-icon">📡</div>
+              <div className="dropzone-icon" style={{ display: 'flex', justifyContent: 'center' }}><UploadCloud size={48} strokeWidth={1.5} /></div>
               <div className="dropzone-text">
                 Drop your hyperspectral data here, or click to browse
               </div>

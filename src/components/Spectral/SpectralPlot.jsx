@@ -1,5 +1,6 @@
 import { useMemo } from 'react'
 import Plot from 'react-plotly.js'
+import { Activity } from 'lucide-react'
 import useAppStore from '../../stores/useAppStore'
 
 /**
@@ -141,7 +142,9 @@ export default function SpectralPlot({ spectrumData }) {
   if (!spectrumData) {
     return (
       <div className="empty-state">
-        <div className="empty-state-icon">📊</div>
+        <div className="empty-state-icon" style={{ opacity: 0.5 }}>
+          <Activity size={32} />
+        </div>
         <div className="empty-state-text">Click a pixel to see its spectrum</div>
       </div>
     )

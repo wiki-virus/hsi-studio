@@ -14,8 +14,11 @@
 // ---------------------------------------------------------------------------
 // State held inside the worker
 // ---------------------------------------------------------------------------
-let datacube = null;   // Float32Array view of the entire datacube
-let meta     = null;   // { samples, lines, bands, dataType, interleave, wavelengths, byteOrder }
+let frames = []; // Array of { datacube: Float32Array, meta: object }
+// For backwards compatibility and single-file workflow, datacube and meta 
+// point to the active frame (usually frame 0).
+let datacube = null;   
+let meta     = null;   
 
 // ---------------------------------------------------------------------------
 // Message router
@@ -26,6 +29,9 @@ self.onmessage = function (e) {
   switch (type) {
     case 'loadData':
       handleLoadData(e.data);
+      break;
+    case 'loadTimeSeries':
+      handleLoadTimeSeries(e.data);
       break;
     case 'extractBand':
       handleExtractBand(e.data);
@@ -63,25 +69,13 @@ const ENVI_DTYPE_MAP = {
 };
 
 // ---------------------------------------------------------------------------
-// loadData — store the raw datacube and metadata
+// loadData — store the raw datacube and metadata (Single Frame)
 // ---------------------------------------------------------------------------
 function handleLoadData({ buffer, metadata }) {
+  const dc = createFloat32Datacube(buffer, metadata);
+  frames = [{ datacube: dc, meta: metadata }];
+  datacube = dc;
   meta = metadata;
-
-  const dtInfo = ENVI_DTYPE_MAP[meta.dataType] || ENVI_DTYPE_MAP[4];
-
-  // Build a typed view over the raw buffer
-  const rawView = new dtInfo.ArrayType(buffer);
-
-  // Convert everything to Float32 for uniform downstream processing
-  if (dtInfo.ArrayType === Float32Array) {
-    datacube = rawView;
-  } else {
-    datacube = new Float32Array(rawView.length);
-    for (let i = 0; i < rawView.length; i++) {
-      datacube[i] = Number(rawView[i]);
-    }
-  }
 
   self.postMessage({
     type: 'ready',
@@ -89,6 +83,44 @@ function handleLoadData({ buffer, metadata }) {
     lines:   meta.lines,
     bands:   meta.bands,
   });
+}
+
+// ---------------------------------------------------------------------------
+// loadTimeSeries — store an array of datacubes and metadata
+// ---------------------------------------------------------------------------
+function handleLoadTimeSeries({ series }) {
+  frames = series.map(frame => ({
+    meta: frame.metadata,
+    datacube: createFloat32Datacube(frame.buffer, frame.metadata)
+  }));
+
+  if (frames.length > 0) {
+    datacube = frames[0].datacube;
+    meta = frames[0].meta;
+  }
+
+  self.postMessage({
+    type: 'timeSeriesReady',
+    frameCount: frames.length,
+    samples: meta.samples,
+    lines:   meta.lines,
+    bands:   meta.bands,
+  });
+}
+
+function createFloat32Datacube(buffer, metadata) {
+  const dtInfo = ENVI_DTYPE_MAP[metadata.dataType] || ENVI_DTYPE_MAP[4];
+  const rawView = new dtInfo.ArrayType(buffer);
+
+  if (dtInfo.ArrayType === Float32Array) {
+    return rawView;
+  } else {
+    const dc = new Float32Array(rawView.length);
+    for (let i = 0; i < rawView.length; i++) {
+      dc[i] = Number(rawView[i]);
+    }
+    return dc;
+  }
 }
 
 // ---------------------------------------------------------------------------
@@ -101,8 +133,8 @@ function handleLoadData({ buffer, metadata }) {
  *   BIL: line * bands * samples + band * samples + sample
  *   BIP: line * samples * bands + sample * bands + band
  */
-function pixelIndex(sample, line, band) {
-  const { samples, lines, bands, interleave } = meta;
+function pixelIndex(sample, line, band, currentMeta = meta) {
+  const { samples, lines, bands, interleave } = currentMeta;
 
   switch (interleave) {
     case 'bsq':
@@ -111,6 +143,27 @@ function pixelIndex(sample, line, band) {
       return line * bands * samples + band * samples + sample;
     case 'bip':
       return line * samples * bands + sample * bands + band;
+    case 'numpy': {
+      const { shapeOrder, fortranOrder } = currentMeta;
+      if (shapeOrder === 'BHW') {
+        if (fortranOrder) {
+          // (B, H, W) F-order: B changes fastest
+          return band + line * bands + sample * bands * lines;
+        } else {
+          // (B, H, W) C-order: W changes fastest
+          return band * lines * samples + line * samples + sample;
+        }
+      } else { 
+        // 'HWB'
+        if (fortranOrder) {
+          // (H, W, B) F-order: H changes fastest
+          return line + sample * lines + band * lines * samples;
+        } else {
+          // (H, W, B) C-order: B changes fastest
+          return line * samples * bands + sample * bands + band;
+        }
+      }
+    }
     default:
       // Fallback: assume BSQ
       return band * lines * samples + line * samples + sample;
@@ -120,20 +173,23 @@ function pixelIndex(sample, line, band) {
 // ---------------------------------------------------------------------------
 // extractBand — pull a single spatial band image + percentile stats
 // ---------------------------------------------------------------------------
-function handleExtractBand({ bandIndex }) {
-  if (!datacube || !meta) {
+function handleExtractBand({ bandIndex, frameIndex = 0 }) {
+  const frame = frames[frameIndex] || { datacube, meta };
+  if (!frame.datacube || !frame.meta) {
     self.postMessage({ type: 'error', message: 'No datacube loaded' });
     return;
   }
 
-  const { samples, lines } = meta;
+  const currentDatacube = frame.datacube;
+  const currentMeta = frame.meta;
+  const { samples, lines } = currentMeta;
   const pixelCount = samples * lines;
   const bandData = new Float32Array(pixelCount);
 
   // --- Extract band using interleave-aware indexing ---
   for (let line = 0; line < lines; line++) {
     for (let sample = 0; sample < samples; sample++) {
-      bandData[line * samples + sample] = datacube[pixelIndex(sample, line, bandIndex)];
+      bandData[line * samples + sample] = currentDatacube[pixelIndex(sample, line, bandIndex, currentMeta)];
     }
   }
 
@@ -163,19 +219,23 @@ function handleExtractBand({ bandIndex }) {
 }
 
 // ---------------------------------------------------------------------------
-// extractSpectrum — full spectral profile at pixel (x, y)
+// extractSpectrum — get all band values for a specific pixel
 // ---------------------------------------------------------------------------
-function handleExtractSpectrum({ x, y }) {
-  if (!datacube || !meta) {
+function handleExtractSpectrum({ x, y, frameIndex = 0 }) {
+  const frame = frames[frameIndex] || { datacube, meta };
+  if (!frame.datacube || !frame.meta) {
     self.postMessage({ type: 'error', message: 'No datacube loaded' });
     return;
   }
 
-  const { bands, wavelengths } = meta;
-  const spectrum = new Float32Array(bands);
+  const currentDatacube = frame.datacube;
+  const currentMeta = frame.meta;
+  const { bands, wavelengths } = currentMeta;
 
-  for (let b = 0; b < bands; b++) {
-    spectrum[b] = datacube[pixelIndex(x, y, b)];
+  const spectrum = new Float32Array(bands);
+  
+  for (let band = 0; band < bands; band++) {
+    spectrum[band] = currentDatacube[pixelIndex(x, y, band, currentMeta)];
   }
 
   // Build wavelengths array (if the header had them, pass through; else use indices)
@@ -200,28 +260,31 @@ function handleExtractSpectrum({ x, y }) {
 }
 
 // ---------------------------------------------------------------------------
-// compositeRGB — three-band false-color composite → RGBA ImageData buffer
+// compositeRGB — construct an RGB interleaved buffer for display
 // ---------------------------------------------------------------------------
-function handleCompositeRGB({ rBand, gBand, bBand }) {
-  if (!datacube || !meta) {
+function handleCompositeRGB({ rBand, gBand, bBand, autoStretch = true, frameIndex = 0 }) {
+  const frame = frames[frameIndex] || { datacube, meta };
+  if (!frame.datacube || !frame.meta) {
     self.postMessage({ type: 'error', message: 'No datacube loaded' });
     return;
   }
 
-  const { samples, lines } = meta;
+  const currentDatacube = frame.datacube;
+  const currentMeta = frame.meta;
+  const { samples, lines } = currentMeta;
   const pixelCount = samples * lines;
-
-  // Extract each band into a temp buffer
+  
   const rData = new Float32Array(pixelCount);
   const gData = new Float32Array(pixelCount);
   const bData = new Float32Array(pixelCount);
 
+  // Extract all 3 bands
   for (let line = 0; line < lines; line++) {
     for (let sample = 0; sample < samples; sample++) {
-      const idx = line * samples + sample;
-      rData[idx] = datacube[pixelIndex(sample, line, rBand)];
-      gData[idx] = datacube[pixelIndex(sample, line, gBand)];
-      bData[idx] = datacube[pixelIndex(sample, line, bBand)];
+      const flatIdx = line * samples + sample;
+      rData[flatIdx] = currentDatacube[pixelIndex(sample, line, rBand, currentMeta)];
+      gData[flatIdx] = currentDatacube[pixelIndex(sample, line, gBand, currentMeta)];
+      bData[flatIdx] = currentDatacube[pixelIndex(sample, line, bBand, currentMeta)];
     }
   }
 

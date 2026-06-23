@@ -52,8 +52,17 @@ export default function StatusBar({ pixelValue }) {
         </span>
       </div>
 
-      {/* Spacer */}
-      <div className="statusbar-spacer" />
+      {/* Spacer & Shortcuts Map */}
+      <div className="statusbar-spacer" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '16px', color: 'var(--text-tertiary)', fontSize: '10px' }}>
+        <span><kbd>V</kbd> View</span>
+        <span><kbd>C</kbd> Crop</span>
+        <span><kbd>B</kbd> Brush</span>
+        <span><kbd>E</kbd> Eraser</span>
+        <span><kbd>P</kbd> Polygon</span>
+        <span><kbd>L</kbd> Lasso</span>
+        <span style={{ marginLeft: '8px' }}><kbd>S</kbd> Single Band</span>
+        <span><kbd>R</kbd> RGB Comp</span>
+      </div>
 
       {/* Zoom level */}
       <div className="statusbar-item">

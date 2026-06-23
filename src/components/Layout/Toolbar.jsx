@@ -1,4 +1,8 @@
 import useAppStore from '../../stores/useAppStore'
+import { 
+  Layers, Palette, MousePointer2, Crop, Paintbrush, 
+  Eraser, Hexagon, Lasso, Save, RotateCcw, LineChart 
+} from 'lucide-react'
 
 export default function Toolbar({ onSave }) {
   const fileName = useAppStore(s => s.fileName)
@@ -33,48 +37,68 @@ export default function Toolbar({ onSave }) {
           onClick={() => setViewMode('single')}
           title="Single Band View"
         >
-          🔲 Single Band
+          <Layers size={16} /> Single Band
         </button>
         <button
           className={`toolbar-btn toolbar-btn-text ${viewMode === 'rgb' ? 'active' : ''}`}
           onClick={() => setViewMode('rgb')}
           title="RGB Composite View"
         >
-          🎨 RGB Composite
+          <Palette size={16} /> RGB Composite
         </button>
       </div>
 
       <div className="toolbar-divider" />
 
-      {/* Annotation Mode */}
+      {/* View & Crop */}
       <div className="toolbar-group">
         <button
           className={`toolbar-btn toolbar-btn-text ${annotationMode === 'view' ? 'active' : ''}`}
           onClick={() => setAnnotationMode('view')}
           title="View Mode"
         >
-          👁 View
-        </button>
-        <button
-          className={`toolbar-btn toolbar-btn-text ${annotationMode === 'brush' ? 'active' : ''}`}
-          onClick={() => setAnnotationMode('brush')}
-          title="Brush Tool"
-        >
-          🖌 Brush
-        </button>
-        <button
-          className={`toolbar-btn toolbar-btn-text ${annotationMode === 'eraser' ? 'active' : ''}`}
-          onClick={() => setAnnotationMode('eraser')}
-          title="Eraser Tool"
-        >
-          ◻ Eraser
+          <MousePointer2 size={16} /> View
         </button>
         <button
           className={`toolbar-btn toolbar-btn-text ${annotationMode === 'rectangle' ? 'active' : ''}`}
           onClick={() => setAnnotationMode('rectangle')}
           title="Crop / Rectangle Select"
         >
-          ✂ Crop
+          <Crop size={16} /> Crop
+        </button>
+      </div>
+
+      <div className="toolbar-divider" />
+
+      {/* Draw Tools */}
+      <div className="toolbar-group">
+        <button
+          className={`toolbar-btn ${annotationMode === 'brush' ? 'active' : ''}`}
+          onClick={() => setAnnotationMode('brush')}
+          title="Brush Tool"
+        >
+          <Paintbrush size={18} />
+        </button>
+        <button
+          className={`toolbar-btn ${annotationMode === 'eraser' ? 'active' : ''}`}
+          onClick={() => setAnnotationMode('eraser')}
+          title="Eraser Tool"
+        >
+          <Eraser size={18} />
+        </button>
+        <button
+          className={`toolbar-btn ${annotationMode === 'polygon' ? 'active' : ''}`}
+          onClick={() => setAnnotationMode('polygon')}
+          title="Polygon Select"
+        >
+          <Hexagon size={18} />
+        </button>
+        <button
+          className={`toolbar-btn ${annotationMode === 'lasso' ? 'active' : ''}`}
+          onClick={() => setAnnotationMode('lasso')}
+          title="Lasso Select"
+        >
+          <Lasso size={18} />
         </button>
       </div>
 
@@ -84,21 +108,21 @@ export default function Toolbar({ onSave }) {
       {/* Right side controls */}
       <div className="toolbar-group">
         <button
-          className="toolbar-btn toolbar-btn-text"
+          className="toolbar-btn"
           onClick={onSave}
           title="Save / Export (Ctrl+S)"
         >
-          💾 Save
+          <Save size={18} />
         </button>
 
         <div className="toolbar-divider" />
 
         <button
-          className="toolbar-btn toolbar-btn-text"
+          className="toolbar-btn"
           onClick={resetView}
           title="Reset View (zoom & pan)"
         >
-          ⟲ Reset View
+          <RotateCcw size={18} />
         </button>
 
         <div className="toolbar-divider" />
@@ -108,7 +132,7 @@ export default function Toolbar({ onSave }) {
           onClick={toggleSpectralPlot}
           title="Toggle Spectral Plot Panel"
         >
-          📈 Spectra
+          <LineChart size={16} /> Spectra
         </button>
       </div>
     </div>

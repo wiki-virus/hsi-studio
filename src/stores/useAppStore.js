@@ -22,10 +22,16 @@ const useAppStore = create((set, get) => ({
   // -----------------------------------------------------------------------
   /** Whether a valid datacube has been loaded */
   fileLoaded: false,
-  /** Display name of the loaded file */
+  /** Display name of the loaded file (or primary file) */
   fileName: '',
+  /** Array of file names loaded in the time series */
+  fileNames: [],
+  /** Array of metadata objects for each frame */
+  timeSeries: [],
+  /** Currently active time frame index */
+  currentFrame: 0,
   /**
-   * Parsed ENVI header metadata
+   * Parsed ENVI header metadata for the current frame
    * Shape: { samples, lines, bands, dataType, interleave, wavelengths, byteOrder }
    */
   metadata: null,
@@ -60,7 +66,7 @@ const useAppStore = create((set, get) => ({
   // 4. Annotation state
   // -----------------------------------------------------------------------
   /** Current annotation tool mode */
-  annotationMode: 'view', // 'view' | 'brush' | 'eraser' | 'rectangle'
+  annotationMode: 'view', // 'view' | 'brush' | 'eraser' | 'rectangle' | 'polygon' | 'lasso'
   /** Brush diameter in pixels */
   brushSize: 10,
   /** Brush edge hardness (0–100) */
@@ -89,7 +95,26 @@ const useAppStore = create((set, get) => ({
   // --- File actions ---
   /** Mark a file as loaded and store its metadata; resets band to 0 */
   setFileLoaded: (fileName, metadata) =>
-    set({ fileLoaded: true, fileName, metadata, currentBand: 0 }),
+    set({ fileLoaded: true, fileName, fileNames: [fileName], timeSeries: [metadata], metadata, currentFrame: 0, currentBand: 0 }),
+  
+  /** Load multiple files for time-series playback */
+  setTimeSeriesLoaded: (fileNames, timeSeriesMetadata) =>
+    set({ 
+      fileLoaded: true, 
+      fileName: fileNames[0], 
+      fileNames, 
+      timeSeries: timeSeriesMetadata, 
+      metadata: timeSeriesMetadata[0], 
+      currentFrame: 0, 
+      currentBand: 0 
+    }),
+
+  setCurrentFrame: (frame) => 
+    set((s) => ({ 
+      currentFrame: frame, 
+      metadata: s.timeSeries[frame] || s.metadata,
+      fileName: s.fileNames[frame] || s.fileName 
+    })),
 
   // --- Viewer actions ---
   setCurrentBand: (band) => set({ currentBand: band }),
