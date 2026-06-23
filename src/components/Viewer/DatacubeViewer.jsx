@@ -462,11 +462,11 @@ export default function DatacubeViewer({ bandImage, rgbImage, bandStats, onPixel
       return
     }
 
-    // Left click in view mode: pixel select
+    // Left click in view mode: pixel select (now pins by default)
     if (e.button === 0 && annotationMode === 'view') {
       const coords = screenToImage(e.clientX, e.clientY)
       if (coords && onPixelClick) {
-        onPixelClick(coords.x, coords.y, e.shiftKey)
+        onPixelClick(coords.x, coords.y, true)
       }
     }
 
