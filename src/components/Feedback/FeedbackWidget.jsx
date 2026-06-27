@@ -1,11 +1,11 @@
 import { useState } from 'react'
 import { createPortal } from 'react-dom'
-import { MessageSquarePlus, X, Send, Mail, CheckCircle2, AlertCircle } from 'lucide-react'
+import { MessageSquarePlus, X, Send, CheckCircle2, AlertCircle } from 'lucide-react'
 
 // Free, no-backend delivery via FormSubmit.co. 
 // NOTE: To prevent your email from being visible in the client-side code, 
 // replace this with a FormSubmit Random String (get one by visiting formsubmit.co/your-email)
-const CONTACT_EMAIL = import.meta.env.VITE_CONTACT_EMAIL || 'YOUR_EMAIL_OR_FORMSUBMIT_STRING_HERE'
+const CONTACT_EMAIL = import.meta.env.VITE_CONTACT_EMAIL || 'roshankavil009@gmail.com'
 const FORMSUBMIT_ENDPOINT = `https://formsubmit.co/ajax/${CONTACT_EMAIL}`
 const SUBJECT = 'HSI Studio — Feature request / feedback'
 

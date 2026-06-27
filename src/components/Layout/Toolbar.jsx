@@ -154,7 +154,7 @@ export default function Toolbar({ onSave, onResetCrop, maskRef }) {
       <div className="toolbar-group">
         <button
           className="toolbar-btn"
-          onClick={() => { if (undoMask(maskRef)) {} }}
+          onClick={() => undoMask(maskRef)}
           disabled={undoCount === 0}
           title="Undo (Ctrl+Z)"
           style={{ opacity: undoCount === 0 ? 0.35 : 1 }}
@@ -163,7 +163,7 @@ export default function Toolbar({ onSave, onResetCrop, maskRef }) {
         </button>
         <button
           className="toolbar-btn"
-          onClick={() => { if (redoMask(maskRef)) {} }}
+          onClick={() => redoMask(maskRef)}
           disabled={redoCount === 0}
           title="Redo (Ctrl+Y)"
           style={{ opacity: redoCount === 0 ? 0.35 : 1 }}

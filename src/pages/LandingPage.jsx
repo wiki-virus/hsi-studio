@@ -306,7 +306,6 @@ export default function LandingPage({ datacubeRef, workerRef, onFormatDetected }
 
   const loadHz = async (hzFile) => {
     setLoadingStatus('Loading Project Archive...')
-    const { parseNpz } = await import('../lib/npzParser')
     const buffer = await hzFile.arrayBuffer()
     
     // We can use JSZip directly since npzParser doesn't extract JSON strings out of the box
