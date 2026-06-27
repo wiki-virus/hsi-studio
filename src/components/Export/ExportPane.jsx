@@ -3,7 +3,7 @@ import { X, Archive, Database, FileSpreadsheet, Image as ImageIcon, PaintBucket,
 import useAppStore from '../../stores/useAppStore'
 
 const EXPORT_FORMATS = [
-  { id: 'hsiproj',   label: 'HSI Studio Project (.hsiproj)', group: 'Project', icon: Archive, desc: 'Saves your current view state, mask, ROIs, and classes. Can be loaded later.' },
+  { id: 'hz',   label: 'HSI Studio Project (.hz)', group: 'Project', icon: Archive, desc: 'Saves your current view state, mask, ROIs, and classes. Can be loaded later.' },
   { id: 'npz',       label: 'NumPy Archive (.npz)',      group: 'Full Datacube', icon: Archive, desc: 'Saves full datacube, wavelengths, and mask. (Python compatible)' },
   { id: 'envi',      label: 'ENVI (.hdr + .dat)',        group: 'Full Datacube', icon: Database, desc: 'Standard format for ENVI, MATLAB, and remote sensing tools.' },
   { id: 'csv',       label: 'Pixel-wise Data (.csv)',    group: 'Full Datacube', icon: FileSpreadsheet, desc: 'Exports all pixels + bands. Adds mask Class if present.' },
@@ -53,7 +53,7 @@ export default function ExportPane({
     try {
       switch (selectedFormat) {
         // ─── HSI Studio Project ───
-        case 'hsiproj': {
+        case 'hz': {
           setStatusMsg('Extracting datacube...')
           const worker = workerRef?.current
           if (!worker) throw new Error('Worker not available')
@@ -130,7 +130,7 @@ export default function ExportPane({
               compression: 'DEFLATE',
               compressionOptions: { level: 6 }
             })
-            triggerDownload(blob, `${baseName}.hsiproj`)
+            triggerDownload(blob, `${baseName}.hz`)
             setStatusMsg('✓ Project Saved!')
             setSaving(false)
             setTimeout(() => onClose(), 1500)

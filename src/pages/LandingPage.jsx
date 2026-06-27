@@ -51,7 +51,7 @@ export default function LandingPage({ datacubeRef, workerRef, onFormatDetected }
     const fileArray = [...accumulatedFilesRef.current, ...Array.from(files)]
     accumulatedFilesRef.current = fileArray
 
-    const hsiprojFile = fileArray.find(f => /\.hsiproj$/i.test(f.name))
+    const hzFile = fileArray.find(f => /\.hz$/i.test(f.name))
     const has = (re) => fileArray.find(f => re.test(f.name))
     const hdrFiles = fileArray.filter(f => /\.hdr$/i.test(f.name))
     const npzFiles = fileArray.filter(f => /\.npz$/i.test(f.name))
@@ -61,9 +61,9 @@ export default function LandingPage({ datacubeRef, workerRef, onFormatDetected }
     setIsLoading(true)
 
     try {
-      if (hsiprojFile) {
-        onFormatDetected?.('hsiproj')
-        const projectData = await loadHsiproj(hsiprojFile)
+      if (hzFile) {
+        onFormatDetected?.('hz')
+        const projectData = await loadHz(hzFile)
         await initWorkerTimeSeries([projectData])
         accumulatedFilesRef.current = []
       } else if (hdrFiles.length > 0) {
@@ -114,7 +114,7 @@ export default function LandingPage({ datacubeRef, workerRef, onFormatDetected }
         accumulatedFilesRef.current = []
       } else {
         accumulatedFilesRef.current = []
-        throw new Error('Unsupported format. Upload HSI Project (.hsiproj), ENVI (.hdr + data), NumPy (.npz), TIFF (.tif/.tiff), or CSV (.csv).')
+        throw new Error('Unsupported format. Upload HSI Project (.hz), ENVI (.hdr + data), NumPy (.npz), TIFF (.tif/.tiff), or CSV (.csv).')
       }
     } catch (err) {
       console.error(err)
@@ -304,10 +304,10 @@ export default function LandingPage({ datacubeRef, workerRef, onFormatDetected }
     return { buffer: dataBuffer, metadata, maskBuffer, fileName: npzFile.name.replace(/\.npz$/i, '') }
   }
 
-  const loadHsiproj = async (hsiprojFile) => {
+  const loadHz = async (hzFile) => {
     setLoadingStatus('Loading Project Archive...')
     const { parseNpz } = await import('../lib/npzParser')
-    const buffer = await hsiprojFile.arrayBuffer()
+    const buffer = await hzFile.arrayBuffer()
     
     // We can use JSZip directly since npzParser doesn't extract JSON strings out of the box
     // Wait, NPZ parser might fail on .json files. Let's just use JSZip directly here.
@@ -366,7 +366,7 @@ export default function LandingPage({ datacubeRef, workerRef, onFormatDetected }
       buffer: dataBuffer, 
       metadata, 
       maskBuffer, 
-      fileName: projectState.filename || hsiprojFile.name.replace(/\.hsiproj$/i, ''),
+      fileName: projectState.filename || hzFile.name.replace(/\.hz$/i, ''),
       projectState 
     }
   }
@@ -539,7 +539,7 @@ export default function LandingPage({ datacubeRef, workerRef, onFormatDetected }
             ref={fileInputRef}
             type="file"
             multiple
-            accept=".hdr,.dat,.raw,.img,.bil,.bip,.bsq,.npz,.csv,.tif,.tiff"
+            accept=".hdr,.dat,.raw,.img,.bil,.bip,.bsq,.npz,.csv,.tif,.tiff,.hz"
             onChange={handleFileChange}
             style={{ display: 'none' }}
           />
