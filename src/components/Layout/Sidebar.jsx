@@ -12,7 +12,7 @@ const RGB_PRESETS = {
   'Custom':        null,
 }
 
-export default function Sidebar({ onRequestBand, onRequestRGB, onBatchExportRois }) {
+export default function Sidebar({ onBatchExportRois }) {
   const metadata = useAppStore(s => s.metadata)
   const currentBand = useAppStore(s => s.currentBand)
   const setCurrentBand = useAppStore(s => s.setCurrentBand)

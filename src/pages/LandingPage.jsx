@@ -15,7 +15,6 @@ export default function LandingPage({ datacubeRef, workerRef, onFormatDetected }
   // Files supplied so far across multiple drops/clicks (for the ENVI .hdr+data
   // pair, where the user may add the two files in separate steps).
   const accumulatedFilesRef = useRef([])
-  const setFileLoaded = useAppStore(s => s.setFileLoaded)
 
   // Extensions we treat as the raw binary half of an ENVI pair.
   const DATA_EXT = /\.(dat|raw|img|bil|bip|bsq)$/i

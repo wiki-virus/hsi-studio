@@ -251,7 +251,6 @@ export function extractBand(buffer, metadata, bandIndex) {
     // Band Interleaved by Pixel: [line][sample][band]
     // For each pixel we pick the single value at the band offset.
     let outIdx = 0;
-    const pixelStride = bands * bpe;
     for (let line = 0; line < lines; line++) {
       for (let samp = 0; samp < samples; samp++) {
         const addr = dataStart + (line * samples + samp) * bands * bpe + bandIndex * bpe;

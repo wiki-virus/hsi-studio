@@ -295,7 +295,7 @@ function handleExtractSpectrum({ x, y, isPin = false, frameIndex = 0 }) {
 // ---------------------------------------------------------------------------
 // compositeRGB — construct an RGB interleaved buffer for display
 // ---------------------------------------------------------------------------
-function handleCompositeRGB({ rBand, gBand, bBand, autoStretch = true, frameIndex = 0 }) {
+function handleCompositeRGB({ rBand, gBand, bBand, frameIndex = 0 }) {
   const frame = frames[frameIndex] || { datacube, meta };
   if (!frame.datacube || !frame.meta) {
     self.postMessage({ type: 'error', message: 'No datacube loaded' });
@@ -654,7 +654,7 @@ function handleMagicWand({ x, y, tolerance, frameIndex = 0 }) {
       normSq += val * val;
     }
     const norm = Math.sqrt(normSq);
-    let angle = 0;
+    let angle;
     if (norm > 0) {
       let cosTheta = dot / (refNorm * norm);
       if (cosTheta > 1) cosTheta = 1;

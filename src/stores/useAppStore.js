@@ -16,7 +16,7 @@
 
 import { create } from 'zustand';
 
-const useAppStore = create((set, get) => ({
+const useAppStore = create((set) => ({
   // -----------------------------------------------------------------------
   // 1. File state
   // -----------------------------------------------------------------------

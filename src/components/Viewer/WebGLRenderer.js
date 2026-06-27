@@ -101,8 +101,8 @@ export class WebGLBandRenderer {
 
     const gl = this.gl
 
-    // Check for float texture support
-    const extColorBufferFloat = gl.getExtension('EXT_color_buffer_float')
+    // Enable float texture support (extension enabled for its side effect)
+    gl.getExtension('EXT_color_buffer_float')
 
     // Create shader programs
     this.singleBandProgram = createProgram(gl, VERT_SHADER, FRAG_SHADER_SINGLE)

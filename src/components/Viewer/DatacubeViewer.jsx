@@ -47,7 +47,6 @@ export default function DatacubeViewer({
   const annotationMode = useAppStore(s => s.annotationMode)
   const rois = useAppStore(s => s.rois)
   const brushSize = useAppStore(s => s.brushSize)
-  const brushHardness = useAppStore(s => s.brushHardness)
   const showMaskOverlay = useAppStore(s => s.showMaskOverlay)
   const maskOpacity = useAppStore(s => s.maskOpacity)
   const classes = useAppStore(s => s.classes)
@@ -135,10 +134,6 @@ export default function DatacubeViewer({
         foundIds.forEach(id => {
           if (!existingIds.has(id)) {
             // Generate a random bright color
-            const h = (id * 137.508) % 360
-            const s = 80 + Math.random() * 20
-            const l = 50 + Math.random() * 20
-            // HSL to HEX helper could be complex, let's use predefined palette or simple hex
             const color = '#' + Math.floor(Math.random()*16777215).toString(16).padStart(6, '0')
             addClass({ id, name: `Imported Class ${id}`, color })
           }
@@ -621,7 +616,7 @@ export default function DatacubeViewer({
     }
   }, [screenToImage, setPanOffset, annotationMode, paintLine, redrawMask, redrawVectors, polygonPoints])
 
-  const handleMouseUp = useCallback((e) => {
+  const handleMouseUp = useCallback(() => {
     isPanningRef.current = false
     isPaintingRef.current = false
     lastPaintPosRef.current = null
@@ -664,7 +659,7 @@ export default function DatacubeViewer({
     }
   }, [cropRect, onCropSelect, fillPolygon])
 
-  const handleDoubleClick = useCallback((e) => {
+  const handleDoubleClick = useCallback(() => {
     if (annotationMode === 'polygon' && polygonPoints.length > 2) {
       fillPolygon(polygonPoints)
       setPolygonPoints([])
@@ -748,13 +743,18 @@ export default function DatacubeViewer({
     }
   }, [metadata, zoom, panOffset])
 
+  // getDisplayStyle / isPanningRef are read at render time intentionally; the
+  // component re-renders on the state (zoom/pan/mode) that drives these.
+  // eslint-disable-next-line react-hooks/refs
   const displayStyle = getDisplayStyle()
 
   // Determine cursor style
+  // eslint-disable-next-line react-hooks/refs
+  const isPanning = isPanningRef.current
   let cursorStyle = 'crosshair'
   if (annotationMode === 'brush' || annotationMode === 'eraser') {
     cursorStyle = 'none' // We render a custom brush cursor
-  } else if (isPanningRef.current) {
+  } else if (isPanning) {
     cursorStyle = 'grabbing'
   }
 
@@ -885,7 +885,7 @@ export default function DatacubeViewer({
       )}
 
       {/* Custom brush cursor */}
-      {(annotationMode === 'brush' || annotationMode === 'eraser') && screenMousePos && containerRef.current && (
+      {(annotationMode === 'brush' || annotationMode === 'eraser') && screenMousePos && (
         <div
           style={{
             position: 'fixed',

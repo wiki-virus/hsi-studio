@@ -17,7 +17,7 @@ import Timeline from '../components/Layout/Timeline'
  *  - Spectrum data in local state (small, ~204 floats)
  *  - Spectral panel resize via drag handle
  */
-export default function ViewerPage({ datacubeRef, workerRef, inputFormat }) {
+export default function ViewerPage({ workerRef }) {
   // ─── Store selectors ───
   const currentBand = useAppStore(s => s.currentBand)
   const viewMode = useAppStore(s => s.viewMode)
@@ -359,9 +359,16 @@ export default function ViewerPage({ datacubeRef, workerRef, inputFormat }) {
     return () => window.removeEventListener('keydown', handleGlobalKeyDown)
   }, [setAnnotationMode])
 
+  // Large image buffers live in refs (not state) to avoid copying; renderTick
+  // drives re-renders when they change, so reading .current here is intentional.
+  // eslint-disable-next-line react-hooks/refs
+  const bandImage = bandImageRef.current
+  // eslint-disable-next-line react-hooks/refs
+  const rgbImage = rgbImageRef.current
+
   return (
     <div className="app-layout">
-      <Toolbar 
+      <Toolbar
         onSave={() => setShowExportPane(true)} 
         onResetCrop={() => {
           if (workerRef.current) {
@@ -382,8 +389,8 @@ export default function ViewerPage({ datacubeRef, workerRef, inputFormat }) {
         <div className="viewer-area">
           <Timeline />
           <DatacubeViewer
-            bandImage={bandImageRef.current}
-            rgbImage={rgbImageRef.current}
+            bandImage={bandImage}
+            rgbImage={rgbImage}
             bandStats={bandStats}
             onPixelClick={handlePixelClick}
             onCropSelect={(rect) => setCropRegion(rect)}

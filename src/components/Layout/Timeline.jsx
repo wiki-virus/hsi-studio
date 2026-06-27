@@ -1,4 +1,3 @@
-import { useCallback, useEffect } from 'react'
 import useAppStore from '../../stores/useAppStore'
 
 export default function Timeline() {

@@ -1,4 +1,4 @@
-import { useState, useMemo, useEffect } from 'react'
+import { useState, useMemo } from 'react'
 import { createPortal } from 'react-dom'
 import Plot from 'react-plotly.js'
 import useAppStore from '../../stores/useAppStore'
