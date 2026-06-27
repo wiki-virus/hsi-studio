@@ -171,17 +171,13 @@ export default function DatacubeViewer({
     if (!container || !metadata) return null
 
     const rect = container.getBoundingClientRect()
-    
-    // Reverse the pan and zoom
-    const containerX = clientX - rect.left
-    const containerY = clientY - rect.top
-    
-    const unscaledX = (containerX - panOffset.x) / zoom
-    const unscaledY = (containerY - panOffset.y) / zoom
 
-    // Calculate actual displayed dimensions
     const containerW = rect.width
     const containerH = rect.height
+    const containerX = clientX - rect.left
+    const containerY = clientY - rect.top
+
+    // Aspect-fit size of the image inside the container
     const imageAspect = metadata.samples / metadata.lines
     const containerAspect = containerW / containerH
 
@@ -194,16 +190,20 @@ export default function DatacubeViewer({
       displayW = containerH * imageAspect
     }
 
-    const imgLeft = (containerW - displayW) / 2
-    const imgTop = (containerH - displayH) / 2
-
     // Update the visual scale of a single image pixel on screen
     const currentScale = zoom * (displayW / metadata.samples)
     setCursorScale(currentScale)
 
+    // The wrapper is centered in the container and transformed with
+    // transform-origin:center as `scale(zoom) translate(pan/zoom)`, which maps a
+    // point at offset p from the image centre to: centre + zoom*p + pan. Invert
+    // that to recover the image-local point (relative to the image centre).
+    const localX = (containerX - containerW / 2 - panOffset.x) / zoom
+    const localY = (containerY - containerH / 2 - panOffset.y) / zoom
+
     // Map to 0-1 range
-    const normX = (unscaledX - imgLeft) / displayW
-    const normY = (unscaledY - imgTop) / displayH
+    const normX = (localX + displayW / 2) / displayW
+    const normY = (localY + displayH / 2) / displayH
 
     // Map to pixel coords
     const px = Math.floor(normX * metadata.samples)
