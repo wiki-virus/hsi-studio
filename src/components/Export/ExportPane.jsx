@@ -191,7 +191,7 @@ export default function ExportPane({
           }
 
           const mask = maskRef?.current
-          if (mask && mask.some(v => v > 0)) {
+          if (!excludeMasks && mask && mask.some(v => v > 0)) {
             const maskNpy = createNpyBuffer(mask, [metadata.lines, metadata.samples], '|u1')
             zip.file('mask.npy', maskNpy)
           }
@@ -240,11 +240,12 @@ export default function ExportPane({
           
           const header = ['Pixel_X', 'Pixel_Y']
           for (let b = 0; b < bands; b++) {
-            header.push(`Band_${b+1}`)
+            const wl = metadata.wavelengths ? metadata.wavelengths[b] : `Band_${b+1}`
+            header.push(wl)
           }
-          // Only add Class if there is ANY mask drawn
+          // Only add Class if there is ANY mask drawn AND we are not excluding masks
           let hasMask = false
-          if (mask) {
+          if (!excludeMasks && mask) {
             for (let i = 0; i < mask.length; i++) {
               if (mask[i] > 0) {
                 hasMask = true
@@ -387,74 +388,48 @@ byte order = 0`
         </button>
       </div>
 
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-md)', marginBottom: 'var(--space-lg)' }}>
-        {['Full Datacube', 'Mask Export', 'Image Export'].map(groupName => (
-          <div key={groupName}>
-            <div style={{ fontSize: '11px', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.05em', color: 'var(--text-secondary)', marginBottom: 'var(--space-sm)' }}>
-              {groupName}
-            </div>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-xs)' }}>
-              {EXPORT_FORMATS.filter(f => f.group === groupName).map(f => {
-                const isSelected = selectedFormat === f.id;
-                const Icon = f.icon;
-                return (
-                  <button
-                    key={f.id}
-                    onClick={() => { setSelectedFormat(f.id); setStatusMsg(''); }}
-                    disabled={saving}
-                    style={{
-                      display: 'flex',
-                      alignItems: 'flex-start',
-                      gap: 'var(--space-sm)',
-                      padding: 'var(--space-sm)',
-                      background: isSelected ? 'var(--bg-tertiary)' : 'transparent',
-                      border: `1px solid ${isSelected ? 'var(--accent-teal)' : 'var(--border-default)'}`,
-                      borderRadius: 'var(--radius-md)',
-                      cursor: saving ? 'not-allowed' : 'pointer',
-                      opacity: saving ? 0.5 : 1,
-                      textAlign: 'left',
-                      transition: 'all 0.2s ease',
-                      boxShadow: isSelected ? '0 0 0 1px var(--accent-teal)' : 'none',
-                    }}
-                    onMouseEnter={e => {
-                      if (!saving && !isSelected) {
-                        e.currentTarget.style.background = 'var(--bg-tertiary)';
-                        e.currentTarget.style.borderColor = 'var(--text-secondary)';
-                      }
-                    }}
-                    onMouseLeave={e => {
-                      if (!saving && !isSelected) {
-                        e.currentTarget.style.background = 'transparent';
-                        e.currentTarget.style.borderColor = 'var(--border-default)';
-                      }
-                    }}
-                  >
-                    <div style={{ color: isSelected ? 'var(--accent-teal)' : 'var(--text-secondary)', marginTop: '2px' }}>
-                      <Icon size={18} />
-                    </div>
-                    <div>
-                      <div style={{ fontSize: 'var(--font-sm)', fontWeight: 500, color: isSelected ? 'var(--text-primary)' : 'var(--text-primary)', marginBottom: '2px' }}>
-                        {f.label}
-                      </div>
-                      <div style={{ fontSize: '11px', color: 'var(--text-tertiary)', lineHeight: 1.4 }}>
-                        {f.desc}
-                      </div>
-                    </div>
-                    {isSelected && (
-                      <div style={{ marginLeft: 'auto', color: 'var(--accent-teal)', display: 'flex', alignItems: 'center', height: '100%' }}>
-                        <CheckCircle2 size={16} />
-                      </div>
-                    )}
-                  </button>
-                )
-              })}
-            </div>
-          </div>
-        ))}
+      <div style={{ marginBottom: 'var(--space-md)' }}>
+        <label style={{ display: 'block', fontSize: 'var(--font-sm)', color: 'var(--text-secondary)', marginBottom: 'var(--space-xs)' }}>
+          Format
+        </label>
+        <select
+          value={selectedFormat}
+          onChange={e => {
+            setSelectedFormat(e.target.value)
+            setStatusMsg('')
+          }}
+          disabled={saving}
+          style={{
+            width: '100%',
+            background: 'var(--bg-tertiary)',
+            color: 'var(--text-primary)',
+            border: 'var(--border-default)',
+            borderRadius: 'var(--radius-md)',
+            padding: 'var(--space-sm) var(--space-md)',
+            fontSize: 'var(--font-sm)',
+            cursor: 'pointer',
+          }}
+        >
+          <optgroup label="Full Datacube">
+            {EXPORT_FORMATS.filter(f => f.group === 'Full Datacube').map(f => (
+              <option key={f.id} value={f.id}>{f.label}</option>
+            ))}
+          </optgroup>
+          <optgroup label="Image Export">
+            {EXPORT_FORMATS.filter(f => f.group === 'Image Export').map(f => (
+              <option key={f.id} value={f.id}>{f.label}</option>
+            ))}
+          </optgroup>
+          <optgroup label="Mask Export">
+            {EXPORT_FORMATS.filter(f => f.group === 'Mask Export').map(f => (
+              <option key={f.id} value={f.id}>{f.label}</option>
+            ))}
+          </optgroup>
+        </select>
       </div>
 
-      {selectedFormat === 'png-view' && (
-        <div style={{ marginBottom: 'var(--space-md)', padding: 'var(--space-sm)', background: 'var(--bg-tertiary)', borderRadius: 'var(--radius-md)' }}>
+      {['npz', 'csv', 'png-view'].includes(selectedFormat) && (
+        <div style={{ marginBottom: 'var(--space-md)', padding: 'var(--space-sm) 0' }}>
           <label style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-sm)', cursor: 'pointer' }}>
             <input 
               type="checkbox" 
@@ -462,10 +437,29 @@ byte order = 0`
               onChange={(e) => setExcludeMasks(e.target.checked)}
               style={{ accentColor: 'var(--accent-blue)' }}
             />
-            <span style={{ fontSize: 'var(--font-sm)' }}>Exclude annotations (Raw image only)</span>
+            <span style={{ fontSize: 'var(--font-sm)' }}>Exclude annotations (Export raw data only)</span>
           </label>
         </div>
       )}
+
+      {/* Format description */}
+      <div style={{
+        fontSize: 'var(--font-xs)',
+        color: 'var(--text-tertiary)',
+        background: 'var(--bg-tertiary)',
+        borderRadius: 'var(--radius-sm)',
+        padding: 'var(--space-sm) var(--space-md)',
+        marginBottom: 'var(--space-lg)',
+        lineHeight: 1.5,
+      }}>
+        {selectedFormat === 'npz' && '💾 Saves the full datacube, wavelengths, and annotation mask as a compressed NumPy archive. Compatible with Python/NumPy.'}
+        {selectedFormat === 'envi' && '💾 Saves as ENVI format (.hdr header + .dat binary). Standard format for ENVI, MATLAB, and many remote sensing tools.'}
+        {selectedFormat === 'csv' && '📄 Exports all pixels + bands to a CSV file. Adds a "Class" column if annotations are present.'}
+        {selectedFormat === 'png-view' && '🖼️ Saves a screenshot of the currently displayed band/composite view as a PNG image.'}
+        {selectedFormat === 'mask-png' && '🎭 Exports only the annotation mask as a grayscale PNG (white = annotated, black = background).'}
+        {selectedFormat === 'mask-npz' && '🎭 Exports only the annotation mask as a NumPy array inside a .npz file.'}
+        {selectedFormat === 'mask-raw' && '🎭 Exports the raw annotation mask as a flat binary file (uint8, row-major).'}
+      </div>
 
       {/* Status */}
       {statusMsg && (
