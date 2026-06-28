@@ -57,6 +57,7 @@ export default function LandingPage({ datacubeRef, workerRef, onFormatDetected }
     const npzFiles = fileArray.filter(f => /\.npz$/i.test(f.name))
     const csvFile = has(/\.csv$/i)
     const tiffFile = has(/\.tiff?$/i)
+    const jsonFile = has(/\.json$/i)
     const imageFile = has(/\.(png|jpe?g|gif|bmp|webp)$/i)
 
     setIsLoading(true)
@@ -105,6 +106,11 @@ export default function LandingPage({ datacubeRef, workerRef, onFormatDetected }
         }
         await initWorkerTimeSeries(series)
         accumulatedFilesRef.current = []
+      } else if (jsonFile) {
+        onFormatDetected?.('json')
+        const projectData = await loadJSON(jsonFile)
+        await initWorkerTimeSeries([projectData])
+        accumulatedFilesRef.current = []
       } else if (csvFile) {
         onFormatDetected?.('csv')
         await loadCSV(csvFile)
@@ -119,7 +125,7 @@ export default function LandingPage({ datacubeRef, workerRef, onFormatDetected }
         accumulatedFilesRef.current = []
       } else {
         accumulatedFilesRef.current = []
-        throw new Error('Unsupported format. Upload HSI Project (.hz), ENVI (.hdr + data), NumPy (.npz), TIFF (.tif/.tiff), CSV (.csv), or an image (.png/.jpg).')
+        throw new Error('Unsupported format. Upload HSI Project (.hz), ENVI (.hdr + data), NumPy (.npz), TIFF (.tif/.tiff), CSV (.csv), JSON (.json), or an image (.png/.jpg).')
       }
     } catch (err) {
       console.error(err)
@@ -375,6 +381,58 @@ export default function LandingPage({ datacubeRef, workerRef, onFormatDetected }
     }
   }
 
+  const loadJSON = async (jsonFile) => {
+    setLoadingStatus('Parsing JSON...')
+    const text = await jsonFile.text()
+    let obj
+    try {
+      obj = JSON.parse(text)
+    } catch {
+      throw new Error('Invalid JSON file — could not parse.')
+    }
+    if (!obj || !obj.metadata || !Array.isArray(obj.data)) {
+      throw new Error('Unsupported JSON: expected an HSI Studio export with "metadata" and "data" fields.')
+    }
+    const m = obj.metadata
+    if (!m.samples || !m.lines || !m.bands) {
+      throw new Error('Invalid JSON metadata: missing samples, lines, or bands.')
+    }
+
+    const datacube = new Float32Array(obj.data)
+    const metadata = {
+      samples: m.samples,
+      lines: m.lines,
+      bands: m.bands,
+      wavelengths: m.wavelengths || null,
+      dataType: 4,
+      dataTypeSize: 4,
+      // data is stored BSQ ([bands, lines, samples]) — same layout as a numpy BHW cube
+      interleave: 'numpy',
+      shapeOrder: 'BHW',
+      fortranOrder: false,
+      byteOrder: 0,
+      isRGBImage: m.isRGBImage || false,
+    }
+
+    const maskBuffer = Array.isArray(obj.mask) ? new Uint8Array(obj.mask) : null
+
+    return {
+      buffer: datacube.buffer,
+      metadata,
+      maskBuffer,
+      fileName: obj.filename || jsonFile.name.replace(/\.json$/i, ''),
+      projectState: {
+        metadata: m,
+        viewState: obj.viewState,
+        annotationState: {
+          classes: obj.classes,
+          rois: obj.rois,
+          maskOpacity: obj.maskOpacity,
+        },
+      },
+    }
+  }
+
   const loadCSV = async (csvFile) => {
     setLoadingStatus('Parsing CSV...')
     const text = await csvFile.text()
@@ -558,7 +616,7 @@ export default function LandingPage({ datacubeRef, workerRef, onFormatDetected }
             ref={fileInputRef}
             type="file"
             multiple
-            accept=".hdr,.dat,.raw,.img,.bil,.bip,.bsq,.npz,.csv,.tif,.tiff,.hz,.png,.jpg,.jpeg,.gif,.bmp,.webp"
+            accept=".hdr,.dat,.raw,.img,.bil,.bip,.bsq,.npz,.csv,.tif,.tiff,.hz,.json,.png,.jpg,.jpeg,.gif,.bmp,.webp"
             onChange={handleFileChange}
             style={{ display: 'none' }}
           />
@@ -609,6 +667,7 @@ export default function LandingPage({ datacubeRef, workerRef, onFormatDetected }
                 <span className="format-badge">TIFF</span>
                 <span className="format-badge">CSV (beta)</span>
                 <span className="format-badge">PNG / JPG</span>
+                <span className="format-badge">JSON</span>
                 <span className="format-badge">BIL / BIP / BSQ</span>
               </div>
             </>

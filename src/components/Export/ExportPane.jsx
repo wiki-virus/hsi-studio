@@ -1,9 +1,10 @@
 import { useState, useCallback } from 'react'
-import { X, Archive, Database, FileSpreadsheet, Image as ImageIcon, PaintBucket, Layers, FileBox, Download, AlertCircle, CheckCircle2, Settings2, ChevronDown } from 'lucide-react'
+import { X, Archive, Database, FileSpreadsheet, Image as ImageIcon, PaintBucket, Layers, FileBox, FileJson, Download, AlertCircle, CheckCircle2, Settings2, ChevronDown } from 'lucide-react'
 import useAppStore from '../../stores/useAppStore'
 
 const EXPORT_FORMATS = [
   { id: 'hz',   label: 'HSI Studio Project (.hz)', group: 'Project', icon: Archive, desc: 'Saves your current view state, mask, ROIs, and classes. Can be loaded later.' },
+  { id: 'json', label: 'JSON (.json)',             group: 'Project', icon: FileJson, desc: 'Human-readable metadata, mask, classes, ROIs + data. Re-importable.' },
   { id: 'npz',       label: 'NumPy Archive (.npz)',      group: 'Full Datacube', icon: Archive, desc: 'Saves full datacube, wavelengths, and mask. (Python compatible)' },
   { id: 'envi',      label: 'ENVI (.hdr + .dat)',        group: 'Full Datacube', icon: Database, desc: 'Standard format for ENVI, MATLAB, and remote sensing tools.' },
   { id: 'csv',       label: 'Pixel-wise Data (.csv)',    group: 'Full Datacube', icon: FileSpreadsheet, desc: 'Exports all pixels + bands. Adds mask Class if present.' },
@@ -139,6 +140,73 @@ export default function ExportPane({
             setSaving(false)
           })
           return // Async handled in promise, exit early
+        }
+
+        // ─── JSON (metadata + mask + classes + data) ───
+        case 'json': {
+          setStatusMsg('Extracting datacube...')
+          const worker = workerRef?.current
+          if (!worker) throw new Error('Worker not available')
+
+          const msg = await new Promise((resolve, reject) => {
+            const handler = (e) => {
+              if (e.data.type === 'datacubeExport') {
+                worker.removeEventListener('message', handler)
+                resolve(e.data)
+              } else if (e.data.type === 'error') {
+                worker.removeEventListener('message', handler)
+                reject(new Error(e.data.message))
+              }
+            }
+            worker.addEventListener('message', handler)
+            worker.postMessage({ type: 'exportDatacube' })
+            setTimeout(() => {
+              worker.removeEventListener('message', handler)
+              reject(new Error('Export timed out'))
+            }, 30000)
+          })
+
+          setStatusMsg('Building JSON...')
+          const state = useAppStore.getState()
+          const mask = maskRef?.current
+          const datacubeArr = new Float32Array(msg.data) // BSQ order: [bands, lines, samples]
+
+          // metadata is kept in full here AND remains on the loaded image (this
+          // export is non-destructive — it only produces a file).
+          const exportObj = {
+            format: 'hsi-studio-json',
+            version: 1,
+            filename: fileName,
+            metadata: {
+              samples: metadata.samples,
+              lines: metadata.lines,
+              bands: metadata.bands,
+              wavelengths: metadata.wavelengths || null,
+              interleave: 'bsq',
+              dataType: 4,
+              isRGBImage: metadata.isRGBImage || false,
+            },
+            viewState: {
+              currentBand,
+              viewMode: state.viewMode,
+              rgbBands: state.rgbBands,
+              contrast: state.contrast,
+              autoStretch: state.autoStretch,
+              colormap: state.colormap,
+            },
+            classes: state.classes,
+            rois: state.rois,
+            maskOpacity: state.maskOpacity,
+            mask: (mask && !excludeMasks) ? Array.from(mask) : null,
+            data: Array.from(datacubeArr),
+          }
+
+          setStatusMsg('Serializing JSON...')
+          await new Promise(r => setTimeout(r, 0))
+          const blob = new Blob([JSON.stringify(exportObj)], { type: 'application/json' })
+          triggerDownload(blob, `${baseName}.json`)
+          setStatusMsg('✓ JSON Saved!')
+          break
         }
 
         // ─── Current View Screenshot ───
